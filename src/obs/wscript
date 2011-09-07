@@ -4,11 +4,13 @@ def build(bld):
     obj = bld.create_ns3_module('obs', ['network', 'applications'])
     obj.source = [
         'model/obs-channel.cc',
+	'model/obs-device.cc',
         ]
     headers = bld.new_task_gen('ns3header')
     headers.module = 'obs'
     headers.source = [
         'model/obs-channel.h',
+	'model/obs-device.h',
         ]
 
 #    if bld.env['ENABLE_EXAMPLES']:
