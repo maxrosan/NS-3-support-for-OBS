@@ -20,6 +20,10 @@ protected:
 	Mac48Address m_address;
 	uint32_t     m_ifindex;
 public:
+
+	virtual void StartReceiving (Ptr<Packet> p, Ptr<OBSBaseDevice> sender, uint32_t wavelength)=0;
+	virtual void StopReceiving (Ptr<OBSBaseDevice> sender, uint32_t wavelength)=0;
+	//
 	virtual void SetIfIndex (const uint32_t index);
 	virtual uint32_t GetIfIndex (void) const;
 	virtual Ptr<Channel> GetChannel (void) const =0;

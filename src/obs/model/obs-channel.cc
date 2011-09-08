@@ -22,13 +22,14 @@ OBSWavelength::OBSWavelength() {
 	m_channel = Ptr<OBSFiber>(NULL);
 }
 
-OBSWavelength::OBSWavelength(Ptr<OBSFiber> channel) {
+OBSWavelength::OBSWavelength(Ptr<OBSFiber> channel, uint32_t id) {
 	NS_ASSERT(channel != NULL);
 
 	m_current_packet = Ptr<Packet>(NULL);
 	m_current_src = 0;
 	m_channel = channel;
 	m_state = IDLE;
+	m_id = id;
 }
 
 OBSWavelength::OBSWavelength(const OBSWavelength &c) {
@@ -47,6 +48,7 @@ OBSWavelength::CopyFrom(const OBSWavelength &wv) {
 	m_current_packet = wv.m_current_packet;
 	m_current_src = wv.m_current_src;
 	m_channel = wv.m_channel;
+	m_id = wv.m_id;
 }
 
 ChannelState
@@ -54,14 +56,69 @@ OBSWavelength::GetState() {
 	return m_state;
 }
 
-void
-OBSWavelength::TransmitStart() {
+bool
+OBSWavelength::TransmitStart(Ptr<Packet> packet, uint32_t srcId) {
+	Ptr<NetDevice> device;
+	uint32_t len, i;
 
+	if (m_state != IDLE) {
+		return false;
+	}
+
+	// XXX: Is it necessary to check the status of sender?
+	
+	m_current_src = srcId;
+	m_current_packet = packet;
+	m_state = TRANSMITING;
+	
+	len = m_channel->GetNDevices();
+
+	for (i = 0; i < len; i++) {
+		if (i != srcId) {
+			device = m_channel->GetDevice(i);
+
+			Simulator::ScheduleWithContext(
+				device->GetNode()->GetId(),
+				m_channel->GetDelay(),
+				&OBSBaseDevice::StartReceiving,
+				m_channel->GetOBSDevice(i),
+				packet,
+				m_channel->GetOBSDevice(srcId),
+				m_id);
+		}
+	}
+
+	return true;
+}
+
+bool
+OBSWavelength::TransmitEnd() {
+	uint32_t i, len;
+	Ptr<OBSBaseDevice> device;
+
+	NS_ASSERT(m_state == TRANSMITING);
+
+	m_state = PROPAGATING;
+
+	len = m_channel->GetNDevices();
+
+	for (i = 0; i < len; i++) {
+		if (i != m_current_src) {
+			device = m_channel->GetOBSDevice(i);
+			device->StopReceiving(m_channel->GetOBSDevice(m_current_src), m_id);
+		}
+	}
+
+	PropagationCompleteEvent();
+
+	return true;
 }
 
 void
-OBSWavelength::TransmitEnd() {
+OBSWavelength::PropagationCompleteEvent() {
+	NS_ASSERT(m_state != PROPAGATING);
 
+	m_state = IDLE;
 }
 
 void
@@ -107,7 +164,7 @@ OBSFiber::OBSFiber():
 	m_devices.reserve(2);
 
 	for (i = 0; i < m_num_wavelength; i++) {
-		m_wavelength.push_back(OBSWavelength(Ptr<OBSFiber>(this, false)));
+		m_wavelength.push_back(OBSWavelength(Ptr<OBSFiber>(this, false), i));
 	}
 }
 
@@ -118,6 +175,11 @@ OBSFiber::GetNDevices(void) const {
 
 Ptr<NetDevice>
 OBSFiber::GetDevice(uint32_t i) const {
+	return m_devices[i];
+}
+
+Ptr<OBSBaseDevice>
+OBSFiber::GetOBSDevice(uint32_t i) const {
 	return m_devices[i];
 }
 
@@ -150,6 +212,28 @@ OBSFiber::Detach(Ptr<OBSBaseDevice> device) {
 			i = j;
 		}
 	} 
+}
+
+Time
+OBSFiber::GetDelay() {
+	return m_delay;
+}
+
+bool
+OBSFiber::TransmitStart(Ptr<Packet> packet, uint32_t srcId,
+	uint32_t wavelength) {
+
+	NS_ASSERT(wavelength < m_num_wavelength);
+	NS_ASSERT(srcId < m_devices.size());
+
+	return m_wavelength[wavelength].TransmitStart(packet, srcId);
+}
+
+bool
+OBSFiber::TransmitEnd(uint32_t wavelength) {
+	NS_ASSERT(wavelength < m_num_wavelength);
+
+	return m_wavelength[wavelength].TransmitEnd();
 }
 
 };

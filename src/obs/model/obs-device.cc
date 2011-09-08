@@ -4,6 +4,8 @@
 
 namespace ns3 {
 
+NS_OBJECT_ENSURE_REGISTERED(OBSBaseDevice);
+
 class OBSFiber;
 
 void
