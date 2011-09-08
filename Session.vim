@@ -607,12 +607,12 @@ setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
 silent! normal! zE
-let s:l = 21 - ((20 * winheight(0) + 20) / 40)
+let s:l = 494 - ((19 * winheight(0) + 20) / 40)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-21
-normal! 019l
+494
+normal! 034l
 wincmd w
 2wincmd w
 exe 'vert 1resize ' . ((&columns * 78 + 97) / 195)

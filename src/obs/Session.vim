@@ -263,12 +263,12 @@ setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
 silent! normal! zE
-let s:l = 37 - ((12 * winheight(0) + 20) / 40)
+let s:l = 55 - ((30 * winheight(0) + 20) / 40)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-37
-normal! 017l
+55
+normal! 01l
 wincmd w
 argglobal
 edit model/obs-channel.cc
@@ -374,14 +374,13 @@ setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
 silent! normal! zE
-let s:l = 109 - ((39 * winheight(0) + 20) / 40)
+let s:l = 141 - ((32 * winheight(0) + 20) / 40)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-109
-normal! 040l
+141
+normal! 01l
 wincmd w
-2wincmd w
 exe 'vert 1resize ' . ((&columns * 78 + 97) / 195)
 exe 'vert 2resize ' . ((&columns * 116 + 97) / 195)
 tabedit model/obs-device.cc
@@ -499,11 +498,11 @@ setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
 silent! normal! zE
-let s:l = 4 - ((3 * winheight(0) + 20) / 40)
+let s:l = 7 - ((6 * winheight(0) + 20) / 40)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-4
+7
 normal! 0
 wincmd w
 argglobal
@@ -610,14 +609,13 @@ setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
 silent! normal! zE
-let s:l = 25 - ((15 * winheight(0) + 20) / 40)
+let s:l = 24 - ((14 * winheight(0) + 20) / 40)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-25
-normal! 014l
+24
+normal! 036l
 wincmd w
-2wincmd w
 exe 'vert 1resize ' . ((&columns * 56 + 97) / 195)
 exe 'vert 2resize ' . ((&columns * 138 + 97) / 195)
 tabnext 2
