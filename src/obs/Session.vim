@@ -16,6 +16,7 @@ set guicursor=n-v-c:block-Cursor/lCursor,ve:ver35-Cursor,o:hor50-Cursor,i-ci:ver
 set helplang=en
 set history=50
 set hlsearch
+set iminsert=0
 set mouse=a
 set ruler
 set termencoding=utf-8
@@ -31,9 +32,9 @@ endif
 set shortmess=aoO
 badd +1 wscript
 badd +1 model/obs-channel.cc
-badd +1 model/obs-channel.h
-badd +0 model/obs-device.h
-badd +0 model/obs-device.cc
+badd +55 model/obs-channel.h
+badd +1 model/obs-device.h
+badd +7 model/obs-device.cc
 args wscript
 edit wscript
 set splitbelow splitright
@@ -143,7 +144,7 @@ setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
 silent! normal! zE
-let s:l = 13 - ((12 * winheight(0) + 20) / 41)
+let s:l = 13 - ((9 * winheight(0) + 15) / 30)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
@@ -159,8 +160,8 @@ set nosplitbelow
 set nosplitright
 wincmd t
 set winheight=1 winwidth=1
-exe 'vert 1resize ' . ((&columns * 78 + 97) / 195)
-exe 'vert 2resize ' . ((&columns * 116 + 97) / 195)
+exe 'vert 1resize ' . ((&columns * 62 + 97) / 195)
+exe 'vert 2resize ' . ((&columns * 132 + 97) / 195)
 argglobal
 setlocal keymap=
 setlocal noarabic
@@ -226,7 +227,8 @@ setlocal matchpairs=(:),{:},[:]
 setlocal modeline
 setlocal modifiable
 setlocal nrformats=octal,hex
-setlocal nonumber
+set number
+setlocal number
 setlocal numberwidth=4
 setlocal omnifunc=ccomplete#Complete
 setlocal path=
@@ -263,12 +265,12 @@ setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
 silent! normal! zE
-let s:l = 55 - ((30 * winheight(0) + 20) / 40)
+let s:l = 67 - ((30 * winheight(0) + 20) / 40)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-55
-normal! 01l
+67
+normal! 037l
 wincmd w
 argglobal
 edit model/obs-channel.cc
@@ -320,7 +322,7 @@ setlocal formatoptions=croql
 setlocal formatlistpat=^\\s*\\d\\+[\\]:.)}\\t\ ]\\s*
 setlocal grepprg=
 setlocal iminsert=0
-setlocal imsearch=2
+setlocal imsearch=0
 setlocal include=
 setlocal includeexpr=
 setlocal indentexpr=
@@ -374,15 +376,16 @@ setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
 silent! normal! zE
-let s:l = 141 - ((32 * winheight(0) + 20) / 40)
+let s:l = 211 - ((6 * winheight(0) + 20) / 40)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-141
-normal! 01l
+211
+normal! 0
 wincmd w
-exe 'vert 1resize ' . ((&columns * 78 + 97) / 195)
-exe 'vert 2resize ' . ((&columns * 116 + 97) / 195)
+2wincmd w
+exe 'vert 1resize ' . ((&columns * 62 + 97) / 195)
+exe 'vert 2resize ' . ((&columns * 132 + 97) / 195)
 tabedit model/obs-device.cc
 set splitbelow splitright
 wincmd _ | wincmd |
@@ -393,8 +396,8 @@ set nosplitbelow
 set nosplitright
 wincmd t
 set winheight=1 winwidth=1
-exe 'vert 1resize ' . ((&columns * 56 + 97) / 195)
-exe 'vert 2resize ' . ((&columns * 138 + 97) / 195)
+exe 'vert 1resize ' . ((&columns * 83 + 97) / 195)
+exe 'vert 2resize ' . ((&columns * 111 + 97) / 195)
 argglobal
 setlocal keymap=
 setlocal noarabic
@@ -498,11 +501,11 @@ setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
 silent! normal! zE
-let s:l = 7 - ((6 * winheight(0) + 20) / 40)
+let s:l = 4 - ((3 * winheight(0) + 20) / 40)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-7
+4
 normal! 0
 wincmd w
 argglobal
@@ -555,7 +558,7 @@ setlocal formatoptions=croql
 setlocal formatlistpat=^\\s*\\d\\+[\\]:.)}\\t\ ]\\s*
 setlocal grepprg=
 setlocal iminsert=0
-setlocal imsearch=2
+setlocal imsearch=0
 setlocal include=
 setlocal includeexpr=
 setlocal indentexpr=
@@ -609,15 +612,16 @@ setlocal nowinfixwidth
 setlocal wrap
 setlocal wrapmargin=0
 silent! normal! zE
-let s:l = 24 - ((14 * winheight(0) + 20) / 40)
+let s:l = 12 - ((4 * winheight(0) + 20) / 40)
 if s:l < 1 | let s:l = 1 | endif
 exe s:l
 normal! zt
-24
-normal! 036l
+12
+normal! 028l
 wincmd w
-exe 'vert 1resize ' . ((&columns * 56 + 97) / 195)
-exe 'vert 2resize ' . ((&columns * 138 + 97) / 195)
+2wincmd w
+exe 'vert 1resize ' . ((&columns * 83 + 97) / 195)
+exe 'vert 2resize ' . ((&columns * 111 + 97) / 195)
 tabnext 2
 if exists('s:wipebuf')
   silent exe 'bwipe ' . s:wipebuf

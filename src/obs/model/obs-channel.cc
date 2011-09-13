@@ -69,7 +69,7 @@ OBSWavelength::TransmitStart(Ptr<Packet> packet, uint32_t srcId) {
 	
 	m_current_src = srcId;
 	m_current_packet = packet;
-	m_state = TRANSMITING;
+	m_state = PROPAGATING;
 	
 	len = m_channel->GetNDevices();
 
@@ -88,7 +88,17 @@ OBSWavelength::TransmitStart(Ptr<Packet> packet, uint32_t srcId) {
 		}
 	}
 
+	Simulator::Schedule(m_channel->GetDelay(), &OBSWavelength::PropagationCompleteEvent,
+	  this);
+
 	return true;
+}
+
+void
+OBSWavelength::PropagationCompleteEvent() {
+	NS_ASSERT(m_state == PROPAGATING);
+
+	m_state = TRANSMITING;
 }
 
 bool
@@ -112,13 +122,6 @@ OBSWavelength::TransmitEnd() {
 	PropagationCompleteEvent();
 
 	return true;
-}
-
-void
-OBSWavelength::PropagationCompleteEvent() {
-	NS_ASSERT(m_state != PROPAGATING);
-
-	m_state = IDLE;
 }
 
 void

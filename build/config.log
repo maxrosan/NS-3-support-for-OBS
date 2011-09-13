@@ -1,6 +1,6 @@
-# project ns (3.11) configured on Thu Aug 25 01:22:14 2011 by
+# project ns (3.11) configured on Tue Sep 13 00:43:02 2011 by
 # waf 1.5.16 (abi 7, python 20700f0 on linux2)
-# using ./waf
+# using ./waf configure --enable-examples --enable-tests
 #
 
 ----------------------------------------
@@ -304,13 +304,13 @@ yes
 
 ---------------------------------------------------
 Checking for pkg-config flags for GTK_CONFIG_STORE 
-not found
-['/usr/bin/pkg-config', '--cflags', '--libs', 'gtk+-2.0 >= 2.12']: '' (exit code 1)
+ok 
+['/usr/bin/pkg-config', '--cflags', '--libs', 'gtk+-2.0 >= 2.12']: '-pthread -I/usr/include/gtk-2.0 -I/usr/lib/gtk-2.0/include -I/usr/include/atk-1.0 -I/usr/include/cairo -I/usr/include/gdk-pixbuf-2.0 -I/usr/include/pango-1.0 -I/usr/include/glib-2.0 -I/usr/lib/glib-2.0/include -I/usr/include/pixman-1 -I/usr/include/freetype2 -I/usr/include/libpng12  -pthread -lgtk-x11-2.0 -lgdk-x11-2.0 -latk-1.0 -lgio-2.0 -lpangoft2-1.0 -lpangocairo-1.0 -lgdk_pixbuf-2.0 -lm -lcairo -lpng12 -lpango-1.0 -lfreetype -lfontconfig -lgobject-2.0 -lgmodule-2.0 -lgthread-2.0 -lrt -lglib-2.0  \n' (exit code 0)
 
 ---------------------------------------------------
 Checking for pkg-config flags for LIBXML2 
-not found
-['/usr/bin/pkg-config', '--cflags', '--libs', 'libxml-2.0 >= 2.6']: '' (exit code 1)
+ok 
+['/usr/bin/pkg-config', '--cflags', '--libs', 'libxml-2.0 >= 2.6']: '-I/usr/include/libxml2  -lxml2  \n' (exit code 0)
 
 ---------------------------------------------------
 Checking for NSC location 

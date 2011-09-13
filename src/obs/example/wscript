@@ -1,0 +1,13 @@
+## -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
+
+def build(bld):
+    if not bld.env['ENABLE_EXAMPLES']:
+        return;
+
+    obj = bld.create_ns3_program('tests', ['obs'])
+    obj.source = 'tests.cc'
+
+#    obj = bld.create_ns3_program('sample-simulator', ['core'])
+#    obj.source = 'sample-simulator.cc'
+
+#    bld.register_ns3_script('sample-simulator.py', ['core'])

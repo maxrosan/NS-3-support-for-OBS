@@ -13,7 +13,8 @@ def build(bld):
 	'model/obs-device.h',
         ]
 
-#    if bld.env['ENABLE_EXAMPLES']:
-#        bld.add_subdirs('examples')
+
+    if bld.env['ENABLE_EXAMPLES']:
+        bld.add_subdirs('example')
 
 #    bld.ns3_python_bindings()
