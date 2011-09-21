@@ -133,6 +133,8 @@ void
 OBSFiber::TransmitEndBurstPacket(uint8_t wavelength) {
 	NS_ASSERT(m_channel_state[wavelength] == TRANSMITTING);
 	NS_ASSERT(wavelength > 0 && wavelength <= m_num_wavelength);
+
+	m_channel_state[wavelength] = IDLE;
 }
 
 };
