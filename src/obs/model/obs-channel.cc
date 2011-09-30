@@ -134,6 +134,8 @@ OBSFiber::TransmitEndBurstPacket(uint8_t wavelength) {
 	NS_ASSERT(m_channel_state[wavelength] == TRANSMITTING);
 	NS_ASSERT(wavelength > 0 && wavelength <= m_num_wavelength);
 
+	// XXX: for each node is not the sender receives a notification about transmission end
+
 	m_channel_state[wavelength] = IDLE;
 }
 
