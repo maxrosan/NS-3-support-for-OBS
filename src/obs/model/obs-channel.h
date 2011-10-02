@@ -10,7 +10,7 @@
 #include "ns3/uinteger.h"
 #include "ns3/packet-burst.h"
 
-#include <vector>
+#include <list>
 
 namespace ns3 {
 
@@ -22,6 +22,7 @@ enum ChannelState {
 	PROPAGATING,
 };
 
+class CoreDevice;
 class OBSFiber : public Channel {
 private:
 	DataRate m_bps;
@@ -34,6 +35,10 @@ private:
 
 	Ptr<Packet> m_current_ctl_pkt;
 	
+	Ptr<CoreDevice> m_points[2];
+
+	uint32_t m_id_gen;
+
 	void PropagationCompleteControlPacket();
 	void PropagationCompleteBurstPacket(uint8_t i);
 public:
@@ -48,6 +53,10 @@ public:
 
 	bool TransmitStartBurstPacket(Ptr<PacketBurst>, uint8_t wavelength, uint8_t sender);
 	void TransmitEndBurstPacket(uint8_t wavelength);
+	uint32_t GetNumChannels();
+	uint32_t GetState(uint32_t wavelength);
+	bool AddDevice(Ptr<CoreDevice> dev, uint32_t &id);
+	DataRate GetDataRate();
 };
 
 };

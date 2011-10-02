@@ -54,7 +54,11 @@ OBSFiber::OBSFiber():
 
 	for (i = 0; i <= m_num_wavelength; i++) {
 		m_channel_state[i] = IDLE;
-	}	
+	}
+
+	m_points[0] = m_points[1] = NULL;
+
+	m_id_gen = 0;
 }
 
 uint32_t
@@ -105,6 +109,9 @@ bool
 OBSFiber::TransmitStartBurstPacket(Ptr<PacketBurst> burst, uint8_t wavelength, uint8_t sender) {
 
 	NS_ASSERT(wavelength > 0 && wavelength <= m_num_wavelength);
+	NS_ASSERT(sender < 2);
+
+	uint32_t wavelength_rcv;
 
 	if (m_channel_state[wavelength] != IDLE) {
 		return false;
@@ -114,7 +121,14 @@ OBSFiber::TransmitStartBurstPacket(Ptr<PacketBurst> burst, uint8_t wavelength, u
 	m_current_sender[wavelength] = sender;
 	m_current_burst[wavelength] = burst;
 
-	// XXX: for each node is not the sender receives a notification after propagation delay
+	// for each node is not the sender receives a notification after propagation delay
+	if (wavelength == 0)
+		wavelength_rcv = 1;
+	else
+		wavelength_rcv = 0;
+
+	Simulator::Schedule(m_delay, &CoreDevice::ReceiveBurstStart, m_points[wavelength_rcv],
+	 m_points[wavelength_rcv], wavelength);
 
 	Simulator::Schedule(m_delay, &OBSFiber::PropagationCompleteBurstPacket, this, sender);
 
@@ -134,9 +148,45 @@ OBSFiber::TransmitEndBurstPacket(uint8_t wavelength) {
 	NS_ASSERT(m_channel_state[wavelength] == TRANSMITTING);
 	NS_ASSERT(wavelength > 0 && wavelength <= m_num_wavelength);
 
-	// XXX: for each node is not the sender receives a notification about transmission end
+	uint32_t sender, dst;
+
+	sender = m_current_sender[wavelength];
+
+	// for each node is not the sender receives a notification about transmission end
+	if (sender == 0) dst = 1;
+	else dst = 0;
+
+	m_points[dst]->ReceiveBurstEnd(wavelength, m_current_burst[wavelength]);
 
 	m_channel_state[wavelength] = IDLE;
+}
+
+uint32_t
+OBSFiber::GetNumChannels() {
+	return m_num_wavelength;
+}
+
+uint32_t
+OBSFiber::GetState(uint32_t wavelength) {
+	return m_channel_state[wavelength];
+}
+
+bool
+OBSFiber::AddDevice(Ptr<CoreDevice> dev, uint32_t &id) {
+	NS_ASSERT(dev != NULL);
+
+	if (m_id_gen == 2)
+		return false;
+
+	m_points[m_id_gen] = dev;
+	m_id_gen++;
+
+	return true;
+}
+
+DataRate
+OBSFiber::GetDataRate() {
+	return m_bps;
 }
 
 };
