@@ -25,12 +25,13 @@ verify_obschannel() {
 	Packet pkt, pkt1;
 	PacketBurst pb;
 
-
 	nodes.Create(4);
 
 	obschannel = CreateObject<OBSFiber>();
 	NS_ASSERT(obschannel != NULL);
-
+	obschannel->SetAttribute("NumOfWL", UintegerValue(5));
+	obschannel->SetAttribute("Delay", TimeValue(Time("5ms")));
+	obschannel->SetAttribute("DataRate", DataRateValue(DataRate("10Gbps")));
 
 	cd1 = CreateObject<CoreDevice>();
 	NS_ASSERT(cd1 != NULL);
@@ -38,8 +39,12 @@ verify_obschannel() {
 	cd2 = CreateObject<CoreDevice>();
 	NS_ASSERT(cd2 != NULL);
 
+	LogComponentEnable("OBSDevice", LOG_LEVEL_INFO);
+
 	cd1->SetFiber(obschannel);
+	cd1->SetAddress(Mac48Address("11:22:33:44:55:66"));
 	cd2->SetFiber(obschannel);
+	cd2->SetAddress(Mac48Address("AA:BB:CC:33:44:55"));
 
 	nodes.Get(0)->AddDevice(cd1);
 	nodes.Get(1)->AddDevice(cd2);
@@ -49,12 +54,18 @@ verify_obschannel() {
 
 	pb.AddPacket(pkt.Copy());
 	pb.AddPacket(pkt1.Copy());
-	//		
+	//
+	cd1->ChangeRoute(1, cd2, 2);
+	cd2->ChangeRoute(2, cd1, 1);
 
+	cd1->SendBurst(1, pb.Copy());
+	//
+	cd1->SendControlPacket(Mac48Address::ConvertFrom(cd2->GetAddress()), 1, 10, 3);
+	//
 	Simulator::Run ();
 	Simulator::Destroy ();
 
-	std::cout << "Done. " << Simulator::Now().GetSeconds() << std::endl;
+	std::cout << "Done. " << std::endl;
 
 	FUNC_OK;
 }

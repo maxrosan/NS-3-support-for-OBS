@@ -15,6 +15,8 @@
 #include "ns3/mac48-address.h"
 #include "ns3/packet-burst.h"
 #include "ns3/object-factory.h"
+#include "ns3/log.h"
+#include "ns3/header.h"
 
 #include <map>
 #include <utility>
@@ -29,6 +31,43 @@ enum TxMachineState
 	BACKOFF      /**< The transmitter is waiting for the channel to be free */
 };
 
+// Packets
+
+class OBSControlHeader : public Header {
+private:
+	uint8_t      m_preamble;
+	uint8_t      m_src[6];
+	uint8_t      m_dst[6];
+	uint32_t     m_burst_id;
+	uint32_t     m_burst_size;
+	uint32_t     m_offset; // time needed for the burst get the router (in ms)
+public:
+	OBSControlHeader();
+	virtual ~OBSControlHeader();
+
+	void SetSource(const Mac48Address &src);
+	void SetDestination(const Mac48Address &dst);
+	void SetBurstID(uint32_t burst_id);
+	void SetBurstSize(uint32_t burst_size);
+	void SetOffset(uint32_t offset);
+
+	static TypeId GetTypeId (void);
+	virtual TypeId GetInstanceTypeId (void) const;
+	virtual void Print (std::ostream &os) const;
+	virtual void Serialize (Buffer::Iterator start) const;
+	virtual uint32_t Deserialize (Buffer::Iterator start);
+	virtual uint32_t GetSerializedSize (void) const;
+
+};
+
+//
+
+class OBSFiber;
+class OBSSwitch {
+public:
+
+};
+
 struct WavelengthReceiver {
 	uint32_t       wavelength;
 	TxMachineState state;
@@ -39,7 +78,7 @@ struct WavelengthReceiver {
 	WavelengthReceiver operator=(const WavelengthReceiver &wr);
 };
 
-class OBSFiber;
+
 class CoreDevice : public NetDevice{
 protected:
 	// m_mux : Wavelength -> (Device, Wavelength)
@@ -63,6 +102,7 @@ protected:
 
 	void SendBurstAfterConverting(uint32_t wavelength, Ptr<PacketBurst> pkt);
 	void TransmitComplete(uint32_t wavelength);
+	void FinishTransmitting();
 public:
 
 	static TypeId GetTypeId(void);
@@ -74,6 +114,10 @@ public:
 	void ReceiveBurstEnd(uint32_t wavelength, Ptr<PacketBurst> pb);
 	void SetFiber(Ptr<OBSFiber> fiber);
 	bool SendBurst(uint32_t wavelength, Ptr<PacketBurst> pkt);
+	uint32_t GetID();
+	void ReceiveControlPacket(Ptr<Packet> pkt);
+	bool SendControlPacket(const OBSControlHeader &header);
+	bool SendControlPacket(Mac48Address dst, uint32_t burst_id, uint32_t burst_size, uint32_t offset);
 
 	virtual void SetIfIndex (const uint32_t index);
 	virtual uint32_t GetIfIndex (void) const;

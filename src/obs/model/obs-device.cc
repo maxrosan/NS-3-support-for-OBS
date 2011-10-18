@@ -4,7 +4,97 @@
 
 #include <ns3/simulator.h>
 
+NS_LOG_COMPONENT_DEFINE("OBSDevice");
+
 namespace ns3 {
+
+OBSControlHeader::OBSControlHeader() {
+}
+
+OBSControlHeader::~OBSControlHeader() {
+}
+
+void
+OBSControlHeader::SetSource(const Mac48Address &src) {
+	src.CopyTo(m_src);
+}
+
+void
+OBSControlHeader::SetDestination(const Mac48Address &dst) {
+	dst.CopyTo(m_dst);
+}
+
+void
+OBSControlHeader::SetBurstID(uint32_t burst_id) {
+	m_burst_id = burst_id;
+}
+
+void
+OBSControlHeader::SetBurstSize(uint32_t burst_size) {
+	m_burst_size = burst_size;
+}
+
+void
+OBSControlHeader::SetOffset(uint32_t offset) {
+	m_offset  = m_offset;
+}
+
+TypeId
+OBSControlHeader::GetTypeId(void) {
+	static TypeId tid = TypeId("ns3::OBSControlHeader")
+		.SetParent<Header>()
+		.AddConstructor<OBSControlHeader>()
+	;
+
+	return tid;
+}
+
+TypeId
+OBSControlHeader::GetInstanceTypeId(void) const {
+	return GetTypeId();
+}
+
+void
+OBSControlHeader::Print(std::ostream &os) const {
+	os << "[ src = " << m_src << " | dst = " << m_dst << " | id = " << m_burst_id << " | burst size = " << m_burst_size << " | offset = " << m_offset << " ]";
+}
+
+void
+OBSControlHeader::Serialize(Buffer::Iterator start) const {
+	start.WriteU8(m_preamble);
+	start.Write(m_src, sizeof m_src);
+	start.Write(m_dst, sizeof m_dst);
+	start.WriteHtonU32(m_burst_id);
+	start.WriteHtonU32(m_burst_size);
+	start.WriteHtonU32(m_offset);
+}
+
+uint32_t
+OBSControlHeader::Deserialize(Buffer::Iterator start) {
+	m_preamble = start.ReadU8();
+	start.Read(m_src, sizeof m_src);
+	start.Read(m_dst, sizeof m_dst);
+	m_burst_id = start.ReadNtohU32();
+	m_burst_size = start.ReadNtohU32();
+	m_offset = start.ReadNtohU32();
+
+	return GetSerializedSize();
+}
+
+uint32_t
+OBSControlHeader::GetSerializedSize(void) const {
+	return (
+		(sizeof m_preamble) +
+		(sizeof m_src) +
+		(sizeof m_dst) +
+		(sizeof m_burst_id) +
+		(sizeof m_burst_size) +
+		(sizeof m_offset)
+		
+	);
+}
+
+//
 
 WavelengthReceiver::WavelengthReceiver() {
 	wavelength = 0;
@@ -56,15 +146,19 @@ void
 CoreDevice::ChangeRoute(uint32_t wavelength, Ptr<CoreDevice> cd, uint32_t wavelength_dst) {
 	NS_ASSERT(m_fiber != NULL);
 
-	m_mux[wavelength] = std::make_pair(cd, wavelength);
+	m_mux[wavelength] = std::make_pair(cd, wavelength_dst);
+
+	NS_LOG_INFO("Changing Route: (Node " << GetID() << ")[WL " << wavelength << "] ---> (Node " << cd->GetID() << ")[WL " << wavelength_dst << "]");
 }
 
-//It is called by the channel as soon as the transmission is finished
+//It is called by the channel as soon as the transmission is started
 void
 CoreDevice::ReceiveBurstStart(uint32_t wavelength) {
 	NS_ASSERT(m_fiber != NULL);
 	
 	m_wr_state[wavelength].state = BUSY;
+
+	NS_LOG_INFO("Receiving burst...");
 }
 
 //It is called by the channel as soon as the transmission is finished
@@ -72,8 +166,15 @@ void
 CoreDevice::ReceiveBurstEnd(uint32_t wavelength, Ptr<PacketBurst> pkt) {
 	NS_ASSERT(m_fiber != NULL);
 
+	m_wr_state[wavelength].state = READY;
+
 	if (m_callback_burst != NULL) {
-		Simulator::Schedule(m_delay_to_process, m_callback_burst, pkt->Copy());
+		Simulator::Schedule(m_delay_to_process, m_callback_burst,
+		 pkt->Copy());
+
+		NS_LOG_INFO("Burst transmission finished...");
+	} else {
+		NS_LOG_INFO("Burst lost, no callback defined");
 	}
 }
 
@@ -87,6 +188,9 @@ CoreDevice::SetFiber(Ptr<OBSFiber> fiber) {
 
 	m_fiber = fiber;
 
+	NS_LOG_INFO("ID = " << m_id);	
+	NS_LOG_INFO("Number of channels = " << fiber->GetNumChannels());
+
 	for (i = 0; i < fiber->GetNumChannels(); i++) {
 		wr.wavelength = i+1;
 		wr.state = READY;
@@ -99,24 +203,38 @@ CoreDevice::SetFiber(Ptr<OBSFiber> fiber) {
 
 void
 CoreDevice::TransmitComplete(uint32_t wavelength) {
+	NS_LOG_INFO(GetID() << ": Transmission complete for wavelength " << wavelength);
 
+	m_fiber->TransmitEndBurstPacket(wavelength);
+	m_wr_state[wavelength].state = READY;
 }
 
+// What I am supposed to do when the fiber gets busy as soon as the packet is converted and ready to go?
 void
 CoreDevice::SendBurstAfterConverting(uint32_t wavelength, Ptr<PacketBurst> pkt) {
 	NS_ASSERT(m_fiber != NULL);
 	NS_ASSERT(wavelength > 0 && wavelength <= m_fiber->GetNumChannels());
 
+	NS_LOG_INFO("Packet converted");
+
 	if (m_fiber->GetState(wavelength) == IDLE) {
 		Time transmit_time;
+		Time time_for_propagation;
 		DataRate data_rate;
+
+		time_for_propagation = m_fiber->GetDelay();
+
+		NS_LOG_INFO(GetID() << ": Fiber idle. Sending packet..."); 
 
 		m_fiber->TransmitStartBurstPacket(pkt, wavelength, m_id);
 		data_rate = m_fiber->GetDataRate();
-		transmit_time = Seconds(data_rate.CalculateTxTime(pkt->GetSize()));
+		transmit_time = Seconds(data_rate.CalculateTxTime(pkt->GetSize())) + Seconds(time_for_propagation);
+
+		NS_LOG_INFO(GetID() << ": Time to transmit : " << transmit_time.GetSeconds() << "s");
 
 		Simulator::Schedule(transmit_time, &CoreDevice::TransmitComplete, this, wavelength);
 	} else {
+		NS_LOG_INFO(GetID() << ": Fiber is not idle");
 		m_wr_state[wavelength].state = READY;
 	}
 }
@@ -129,16 +247,92 @@ CoreDevice::SendBurst(uint32_t wavelength, Ptr<PacketBurst> packet) {
 
 	Ptr<PacketBurst> copy_pkt = packet->Copy();
 
+	NS_LOG_INFO("Sending burst");
+
 	if (m_wr_state[wavelength].state == READY && m_fiber->GetState(wavelength) == IDLE) {
+		// Delay to convert eletric information into optical one
 		Simulator::Schedule(m_delay_to_conv_ele_opt,
 		 &CoreDevice::SendBurstAfterConverting,
 		 this, wavelength, copy_pkt);
 
 		m_wr_state[wavelength].state = BUSY;
-	} else
+	
+		NS_LOG_INFO("Converting packet...");
+	
+	} else {
+		NS_LOG_INFO("Wavelength channel was not ready to go");
 		return false;
+	}
 
 	return true;
+}
+
+uint32_t
+CoreDevice::GetID(void) {
+	return m_id;
+}
+
+void
+CoreDevice::ReceiveControlPacket(Ptr<Packet> pkt) {
+	NS_ASSERT(m_fiber != NULL);
+	NS_ASSERT(pkt != NULL);
+
+	NS_LOG_INFO("Control pkt received");
+}
+
+void
+CoreDevice::FinishTransmitting() {
+	NS_ASSERT(m_fiber != NULL);
+
+	m_fiber->TransmitEndControlPacket();
+}
+
+bool
+CoreDevice::SendControlPacket(Mac48Address dst, uint32_t burst_id, uint32_t burst_size, uint32_t offset) {
+
+	OBSControlHeader ch;
+
+	ch.SetSource(m_addr);
+	ch.SetDestination(dst);
+	ch.SetBurstID(burst_id);
+	ch.SetBurstSize(burst_size);
+	ch.SetOffset(offset);
+
+	return SendControlPacket(ch);
+}
+
+bool
+CoreDevice::SendControlPacket(const OBSControlHeader &header) {
+
+	NS_ASSERT(m_fiber != NULL);
+
+	Ptr<Packet> pkt_ptr;
+	Packet pkt = Packet((uint8_t*) "1", 1);
+	pkt.AddHeader(header);
+
+	pkt_ptr = pkt.Copy();
+
+	if (m_fiber->TransmitStartControlPacket(pkt_ptr, GetID())) {
+		Time transmit_time;
+		DataRate data_rate;
+		Time time_for_converting;
+
+		NS_LOG_INFO(GetID() << ": Sending control packet");
+
+		time_for_converting = m_delay_to_conv_ele_opt;
+		data_rate = m_fiber->GetDataRate();
+		transmit_time = Seconds(data_rate.CalculateTxTime(pkt_ptr->GetSize())) + Seconds(time_for_converting);
+		
+		Simulator::Schedule(transmit_time,
+		 &CoreDevice::FinishTransmitting,
+		 this);	
+
+		return true;
+	} else {
+		NS_LOG_INFO(GetID() << ": Failed to send control packet");
+	}
+
+	return false;
 }
 
 void

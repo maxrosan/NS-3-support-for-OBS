@@ -57,6 +57,7 @@ public:
 	uint32_t GetState(uint32_t wavelength);
 	bool AddDevice(Ptr<CoreDevice> dev, uint32_t &id);
 	DataRate GetDataRate();
+	Time GetDelay();
 };
 
 };

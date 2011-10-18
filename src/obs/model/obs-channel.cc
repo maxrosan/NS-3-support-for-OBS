@@ -19,21 +19,19 @@ OBSFiber::GetTypeId(void) {
 	static TypeId tid = TypeId("ns3::OBSFiber")
 		.SetParent<Channel>()
 		.AddConstructor<OBSFiber>()
-		.AddAttribute("DataRate",
-			"Transmission rate",
+		.AddAttribute("DataRate", "Transmission rate",
 			DataRateValue(DataRate("10Gbps")),
 			MakeDataRateAccessor(&OBSFiber::m_bps),
 			MakeDataRateChecker())
-		.AddAttribute("Delay",
-			"Transmission delay",
+		.AddAttribute("Delay", "Transmission delay",
 			// XXX: Hypothetical value. A more realistic value
 			// should be used
-			TimeValue(Time("10ns")),
+			TimeValue(Time("50ms")),
 			MakeTimeAccessor(&OBSFiber::m_delay),
 			MakeTimeChecker())
-		.AddAttribute("NumberOfWavelength",
-			"...", // XXX: Some comments here
-			TypeId::ATTR_GET,
+		.AddAttribute("NumOfWL", "...",
+			// XXX: Some comments here
+			TypeId::ATTR_SET | TypeId::ATTR_GET,
 			UintegerValue(5),
 			MakeUintegerAccessor(&OBSFiber::m_num_wavelength),
 			MakeUintegerChecker<uint32_t>(1, 5))
@@ -46,6 +44,8 @@ OBSFiber::OBSFiber():
 	Channel() 
 {
 	uint8_t i;
+
+	NS_LOG_FUNCTION_NOARGS();
 
 	// wavelength 0 is reserved for control channel
 	m_channel_state = new ChannelState[m_num_wavelength + 1];
@@ -90,6 +90,12 @@ OBSFiber::PropagationCompleteControlPacket() {
 	NS_ASSERT(m_channel_state[0] == PROPAGATING);
 
 	m_channel_state[0] = IDLE;
+
+	if (m_current_sender[0] == 0) {
+		m_points[1]->ReceiveControlPacket(m_current_ctl_pkt);
+	} else {
+		m_points[0]->ReceiveControlPacket(m_current_ctl_pkt);
+	}
 }
 
 void
@@ -127,10 +133,11 @@ OBSFiber::TransmitStartBurstPacket(Ptr<PacketBurst> burst, uint8_t wavelength, u
 	else
 		wavelength_rcv = 0;
 
-	Simulator::Schedule(m_delay, &CoreDevice::ReceiveBurstStart, m_points[wavelength_rcv],
-	 m_points[wavelength_rcv], wavelength);
+	Simulator::Schedule(m_delay, &CoreDevice::ReceiveBurstStart,
+	  m_points[wavelength_rcv], wavelength);
 
-	Simulator::Schedule(m_delay, &OBSFiber::PropagationCompleteBurstPacket, this, sender);
+	Simulator::Schedule(m_delay, &OBSFiber::PropagationCompleteBurstPacket,
+	  this, wavelength);
 
 	return true;
 }
@@ -179,6 +186,7 @@ OBSFiber::AddDevice(Ptr<CoreDevice> dev, uint32_t &id) {
 		return false;
 
 	m_points[m_id_gen] = dev;
+	id = m_id_gen;
 	m_id_gen++;
 
 	return true;
@@ -187,6 +195,11 @@ OBSFiber::AddDevice(Ptr<CoreDevice> dev, uint32_t &id) {
 DataRate
 OBSFiber::GetDataRate() {
 	return m_bps;
+}
+
+Time
+OBSFiber::GetDelay() {
+	return m_delay;
 }
 
 };
