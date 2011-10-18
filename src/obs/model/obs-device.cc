@@ -9,6 +9,7 @@ NS_LOG_COMPONENT_DEFINE("OBSDevice");
 namespace ns3 {
 
 OBSControlHeader::OBSControlHeader() {
+	m_preamble = 0x7f;
 }
 
 OBSControlHeader::~OBSControlHeader() {
@@ -19,9 +20,23 @@ OBSControlHeader::SetSource(const Mac48Address &src) {
 	src.CopyTo(m_src);
 }
 
+Mac48Address
+OBSControlHeader::GetSource(void) {
+	Mac48Address src;
+	src.CopyFrom(m_src);
+	return src;
+}
+
 void
 OBSControlHeader::SetDestination(const Mac48Address &dst) {
 	dst.CopyTo(m_dst);
+}
+
+Mac48Address
+OBSControlHeader::GetDestination(void) {
+	Mac48Address dst;
+	dst.CopyFrom(m_dst);
+	return dst;
 }
 
 void
@@ -29,14 +44,29 @@ OBSControlHeader::SetBurstID(uint32_t burst_id) {
 	m_burst_id = burst_id;
 }
 
+uint32_t
+OBSControlHeader::GetBurstID(void) {
+	return m_burst_id;
+}
+
 void
 OBSControlHeader::SetBurstSize(uint32_t burst_size) {
 	m_burst_size = burst_size;
 }
 
+uint32_t
+OBSControlHeader::GetBurstSize(void) {
+	return m_burst_size;
+}
+
 void
 OBSControlHeader::SetOffset(uint32_t offset) {
-	m_offset  = m_offset;
+	m_offset  = offset;
+}
+
+uint32_t
+OBSControlHeader::GetOffset(void) {
+	return m_offset;
 }
 
 TypeId
@@ -96,6 +126,40 @@ OBSControlHeader::GetSerializedSize(void) const {
 
 //
 
+OBSRoutingTableTuple::OBSRoutingTableTuple() {
+	m_metric = 0;
+}
+
+OBSRoutingTableTuple::OBSRoutingTableTuple(Ptr<CoreDevice> out, uint32_t metric) {
+	m_out = out;
+	m_metric = metric;
+}
+
+OBSRoutingTableTuple::OBSRoutingTableTuple(const OBSRoutingTableTuple &tuple) {
+	m_out = tuple.m_out;
+	m_metric = tuple.m_metric;
+}
+
+OBSRoutingTableTuple
+OBSRoutingTableTuple::operator=(const OBSRoutingTableTuple &t) {
+	m_out = t.m_out;
+	m_metric = t.m_metric;
+
+	return *this;
+}
+
+OBSSwitch::OBSSwitch() {
+
+}
+
+
+void
+OBSSwitch::AddRoute(Mac48Address addr, OBSRoutingTableTuple out) {
+	m_routing_table[addr] = out;
+}
+
+//
+
 WavelengthReceiver::WavelengthReceiver() {
 	wavelength = 0;
 	state = READY;
@@ -125,12 +189,12 @@ CoreDevice::GetTypeId() {
 		"Processing delay",
 		// XXX: Hypothetical value. A more realistic value
 		// should be used
-		TimeValue(Time("300ns")),
+		TimeValue(Time("30ms")),
 		MakeTimeAccessor(&CoreDevice::m_delay_to_process),
 		MakeTimeChecker())
 	.AddAttribute("ConvertingEletricToOptical",
 		"Delay for converting electrical signal into an optical one",
-		TimeValue(Time("100ns")), //XXX: Unreal value
+		TimeValue(Time("10ms")), //XXX: Unreal value
 		MakeTimeAccessor(&CoreDevice::m_delay_to_conv_ele_opt),
 		MakeTimeChecker())
 	;
@@ -158,7 +222,7 @@ CoreDevice::ReceiveBurstStart(uint32_t wavelength) {
 	
 	m_wr_state[wavelength].state = BUSY;
 
-	NS_LOG_INFO("Receiving burst...");
+	NS_LOG_INFO(m_addr << ": Receiving burst...");
 }
 
 //It is called by the channel as soon as the transmission is finished
@@ -172,9 +236,9 @@ CoreDevice::ReceiveBurstEnd(uint32_t wavelength, Ptr<PacketBurst> pkt) {
 		Simulator::Schedule(m_delay_to_process, m_callback_burst,
 		 pkt->Copy());
 
-		NS_LOG_INFO("Burst transmission finished...");
+		NS_LOG_INFO(m_addr << ": Burst transmission finished...");
 	} else {
-		NS_LOG_INFO("Burst lost, no callback defined");
+		NS_LOG_INFO(m_addr << ": Burst lost, no callback defined");
 	}
 }
 
@@ -188,8 +252,8 @@ CoreDevice::SetFiber(Ptr<OBSFiber> fiber) {
 
 	m_fiber = fiber;
 
-	NS_LOG_INFO("ID = " << m_id);	
-	NS_LOG_INFO("Number of channels = " << fiber->GetNumChannels());
+	NS_LOG_INFO(m_addr << ": ID = " << m_id);	
+	NS_LOG_INFO(m_addr << ": Number of channels = " << fiber->GetNumChannels());
 
 	for (i = 0; i < fiber->GetNumChannels(); i++) {
 		wr.wavelength = i+1;
@@ -203,7 +267,7 @@ CoreDevice::SetFiber(Ptr<OBSFiber> fiber) {
 
 void
 CoreDevice::TransmitComplete(uint32_t wavelength) {
-	NS_LOG_INFO(GetID() << ": Transmission complete for wavelength " << wavelength);
+	NS_LOG_INFO(m_addr << ": Transmission complete for wavelength " << wavelength);
 
 	m_fiber->TransmitEndBurstPacket(wavelength);
 	m_wr_state[wavelength].state = READY;
@@ -215,7 +279,7 @@ CoreDevice::SendBurstAfterConverting(uint32_t wavelength, Ptr<PacketBurst> pkt) 
 	NS_ASSERT(m_fiber != NULL);
 	NS_ASSERT(wavelength > 0 && wavelength <= m_fiber->GetNumChannels());
 
-	NS_LOG_INFO("Packet converted");
+	NS_LOG_INFO(m_addr << ": Packet converted");
 
 	if (m_fiber->GetState(wavelength) == IDLE) {
 		Time transmit_time;
@@ -224,17 +288,17 @@ CoreDevice::SendBurstAfterConverting(uint32_t wavelength, Ptr<PacketBurst> pkt) 
 
 		time_for_propagation = m_fiber->GetDelay();
 
-		NS_LOG_INFO(GetID() << ": Fiber idle. Sending packet..."); 
+		NS_LOG_INFO(m_addr << ": Fiber idle. Sending packet..."); 
 
 		m_fiber->TransmitStartBurstPacket(pkt, wavelength, m_id);
 		data_rate = m_fiber->GetDataRate();
 		transmit_time = Seconds(data_rate.CalculateTxTime(pkt->GetSize())) + Seconds(time_for_propagation);
 
-		NS_LOG_INFO(GetID() << ": Time to transmit : " << transmit_time.GetSeconds() << "s");
+		NS_LOG_INFO(m_addr << ": Time to transmit : " << transmit_time.GetSeconds() << "s");
 
 		Simulator::Schedule(transmit_time, &CoreDevice::TransmitComplete, this, wavelength);
 	} else {
-		NS_LOG_INFO(GetID() << ": Fiber is not idle");
+		NS_LOG_INFO(m_addr << ": Fiber is not idle");
 		m_wr_state[wavelength].state = READY;
 	}
 }
@@ -247,7 +311,7 @@ CoreDevice::SendBurst(uint32_t wavelength, Ptr<PacketBurst> packet) {
 
 	Ptr<PacketBurst> copy_pkt = packet->Copy();
 
-	NS_LOG_INFO("Sending burst");
+	NS_LOG_INFO(m_addr << ": Sending burst");
 
 	if (m_wr_state[wavelength].state == READY && m_fiber->GetState(wavelength) == IDLE) {
 		// Delay to convert eletric information into optical one
@@ -257,10 +321,10 @@ CoreDevice::SendBurst(uint32_t wavelength, Ptr<PacketBurst> packet) {
 
 		m_wr_state[wavelength].state = BUSY;
 	
-		NS_LOG_INFO("Converting packet...");
+		NS_LOG_INFO(m_addr << ": Converting packet... [" << m_delay_to_conv_ele_opt << "]");
 	
 	} else {
-		NS_LOG_INFO("Wavelength channel was not ready to go");
+		NS_LOG_INFO(m_addr << ": Wavelength channel was not ready to go");
 		return false;
 	}
 
@@ -273,11 +337,30 @@ CoreDevice::GetID(void) {
 }
 
 void
+CoreDevice::ControlPacketConverted(Ptr<Packet> pkt) {
+	NS_ASSERT(pkt != NULL);
+
+	OBSControlHeader obsch;
+	NS_ASSERT(pkt->RemoveHeader(obsch) > 0);
+
+	NS_LOG_INFO("Control packet:");
+	NS_LOG_INFO("Src " << obsch.GetSource());
+	NS_LOG_INFO("Dst " << obsch.GetDestination());
+	NS_LOG_INFO("ID  " << obsch.GetBurstID());
+	NS_LOG_INFO("Siz " << obsch.GetBurstSize());
+	NS_LOG_INFO("Tim " << obsch.GetOffset());
+}
+
+void
 CoreDevice::ReceiveControlPacket(Ptr<Packet> pkt) {
 	NS_ASSERT(m_fiber != NULL);
 	NS_ASSERT(pkt != NULL);
 
-	NS_LOG_INFO("Control pkt received");
+	Time delay_total = m_delay_to_conv_ele_opt + m_delay_to_process;
+
+	NS_LOG_INFO(m_addr << ": Control pkt received");
+
+	Simulator::Schedule(delay_total, &CoreDevice::ControlPacketConverted, this, pkt);
 }
 
 void
@@ -317,7 +400,7 @@ CoreDevice::SendControlPacket(const OBSControlHeader &header) {
 		DataRate data_rate;
 		Time time_for_converting;
 
-		NS_LOG_INFO(GetID() << ": Sending control packet");
+		NS_LOG_INFO(m_addr << ": Sending control packet");
 
 		time_for_converting = m_delay_to_conv_ele_opt;
 		data_rate = m_fiber->GetDataRate();
@@ -329,7 +412,7 @@ CoreDevice::SendControlPacket(const OBSControlHeader &header) {
 
 		return true;
 	} else {
-		NS_LOG_INFO(GetID() << ": Failed to send control packet");
+		NS_LOG_INFO(m_addr << ": Failed to send control packet");
 	}
 
 	return false;
@@ -460,5 +543,16 @@ CoreDevice::SendFrom (Ptr< Packet > packet, const Address &source, const Address
 
 }
 
+
+CoreNodeDevice::CoreNodeDevice():
+	CoreDevice()
+{
+}
+
+BorderNodeDevice::BorderNodeDevice():
+	CoreDevice()
+{
+
+}
 
 };

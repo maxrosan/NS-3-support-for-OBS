@@ -128,7 +128,7 @@ OBSFiber::TransmitStartBurstPacket(Ptr<PacketBurst> burst, uint8_t wavelength, u
 	m_current_burst[wavelength] = burst;
 
 	// for each node is not the sender receives a notification after propagation delay
-	if (wavelength == 0)
+	if (sender == 0)
 		wavelength_rcv = 1;
 	else
 		wavelength_rcv = 0;

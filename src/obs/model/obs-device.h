@@ -46,10 +46,15 @@ public:
 	virtual ~OBSControlHeader();
 
 	void SetSource(const Mac48Address &src);
+	Mac48Address GetSource(void);
 	void SetDestination(const Mac48Address &dst);
+	Mac48Address GetDestination(void);
 	void SetBurstID(uint32_t burst_id);
+	uint32_t GetBurstID(void);
 	void SetBurstSize(uint32_t burst_size);
+	uint32_t GetBurstSize(void);
 	void SetOffset(uint32_t offset);
+	uint32_t GetOffset(void);
 
 	static TypeId GetTypeId (void);
 	virtual TypeId GetInstanceTypeId (void) const;
@@ -62,10 +67,25 @@ public:
 
 //
 
+class CoreDevice;
+class OBSRoutingTableTuple {
+private:
+	Ptr<CoreDevice> m_out;
+	uint32_t        m_metric;
+public:
+	OBSRoutingTableTuple();
+	OBSRoutingTableTuple(Ptr<CoreDevice> out, uint32_t metric);
+	OBSRoutingTableTuple(const OBSRoutingTableTuple &tuple);
+	OBSRoutingTableTuple operator=(const OBSRoutingTableTuple &t);
+};
+
 class OBSFiber;
 class OBSSwitch {
+private:
+	std::map<Mac48Address, OBSRoutingTableTuple> m_routing_table;
 public:
-
+	OBSSwitch();
+	void AddRoute(Mac48Address, OBSRoutingTableTuple out);
 };
 
 struct WavelengthReceiver {
@@ -103,6 +123,7 @@ protected:
 	void SendBurstAfterConverting(uint32_t wavelength, Ptr<PacketBurst> pkt);
 	void TransmitComplete(uint32_t wavelength);
 	void FinishTransmitting();
+	void ControlPacketConverted(Ptr<Packet> pkt);
 public:
 
 	static TypeId GetTypeId(void);
@@ -146,7 +167,15 @@ public:
 
 };
 
+class CoreNodeDevice : public CoreDevice {
+public:
+	CoreNodeDevice();
+};
 
+class BorderNodeDevice : public CoreDevice {
+public:
+	BorderNodeDevice();
+};
 
 };
 
