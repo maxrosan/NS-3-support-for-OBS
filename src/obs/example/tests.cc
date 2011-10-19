@@ -15,6 +15,8 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <stack>
+#include <utility>
 
 using namespace ns3;
 using std::cin;
@@ -29,6 +31,9 @@ read_input() {
 	std::string type, name, nA, nB, sep;
 	NodeContainer nc;
 	std::map<std::string, uint32_t> map_node;
+	// [A][B] -> (Address, Device) => P/ enviar de A p/ B o destino tem endereço Address e o enlace de saída é Device
+	std::map<std::string, std::map<std::string, 
+	 std::pair<Mac48Address, Ptr<CoreDevice> > > > map_routing;
 
 	cin >> n_nodes;
 	nc.Create(n_nodes);
@@ -93,13 +98,80 @@ read_input() {
 
 			node1->AddDevice(dev1);
 			obss1->AddDevice(dev1);
+			obss1->AddRoute(Mac48Address::ConvertFrom(dev2->GetAddress()),
+			 OBSRoutingTableTuple(dev1, 0));
 
 			node2->AddDevice(dev2);
 			obss2->AddDevice(dev2);
+			obss2->AddRoute(Mac48Address::ConvertFrom(dev1->GetAddress()),
+			 OBSRoutingTableTuple(dev2, 0));
+
+			map_routing[nA][nB] = std::make_pair(Mac48Address::ConvertFrom(dev2->GetAddress()), dev1);
+			map_routing[nB][nA] = std::make_pair(Mac48Address::ConvertFrom(dev1->GetAddress()), dev2);
 		}
 
 		cin >> nA;
 	}
+
+	cin >> type;
+	while (type == std::string("path")) {
+		std::stack<std::string> S;
+		std::string target, last;
+		Mac48Address addr;
+
+		cin >> name;
+		while (name != std::string(";")) {
+			S.push(name);
+			NS_ASSERT(map_node.find(name) != map_node.end());
+			cin >> name;
+		}
+
+		last = target = S.top();
+		S.pop();
+		while (!S.empty()) {
+			std::string nod;
+			Ptr<Node> ptrnode;
+			Ptr<OBSSwitch> sw;
+
+			nod = S.top();
+			if (last == target) {
+				addr = Mac48Address::ConvertFrom(map_routing[nod][target].first);
+			} else {
+				Ptr<CoreDevice> dev;
+
+				ptrnode = nc.Get(map_node[nod]);
+				sw = ptrnode->GetObject<OBSSwitch>();
+				NS_ASSERT(sw != NULL);
+				dev = map_routing[nod][last].second;
+
+				cout << nod << "[" << Mac48Address::ConvertFrom(dev->GetAddress()) << "] -> " << addr << std::endl;
+				sw->AddRoute(addr, OBSRoutingTableTuple(dev, 0));
+			}
+	
+			last = nod;
+			S.pop();
+		}
+
+		cin >> type;
+	}
+
+	cout << "Interfaces" << std::endl;
+	for (
+	 std::map<std::string, uint32_t>::iterator it = map_node.begin();
+	 it != map_node.end();
+	 it++
+	) {
+		Ptr<Node> node;
+		uint32_t j;		
+
+		cout << "Node " << it->first << std::endl;
+		node = nc.Get(it->second);
+		
+		for (j = 0; j < node->GetNDevices(); j++) {
+			cout << "IF " << Mac48Address::ConvertFrom(node->GetDevice(j)->GetAddress()) << std::endl;
+		}
+	}
+	
 }
 
 static void
