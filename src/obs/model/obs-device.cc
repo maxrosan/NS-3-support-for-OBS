@@ -152,10 +152,28 @@ OBSSwitch::OBSSwitch() {
 
 }
 
+TypeId
+OBSSwitch::GetTypeId(void) {
+	static TypeId tid = TypeId("ns3::OBSwitch")
+		.SetParent<Object>()
+		.AddConstructor<OBSSwitch>();
+
+	return tid;
+}
 
 void
 OBSSwitch::AddRoute(Mac48Address addr, OBSRoutingTableTuple out) {
 	m_routing_table[addr] = out;
+}
+
+void
+OBSSwitch::ReceiveControlPacket(Ptr<Packet> control_pkt) {
+	NS_LOG_INFO("Switch: control pkt received");
+}
+
+void
+OBSSwitch::AddDevice(Ptr<CoreDevice> device) {
+	m_devices.push_back(device);
 }
 
 //
@@ -204,6 +222,13 @@ CoreDevice::GetTypeId() {
 
 CoreDevice::CoreDevice() {
 	
+}
+
+void
+CoreDevice::SetSwitch(Ptr<OBSSwitch> sw) {
+	NS_ASSERT(sw != NULL);
+	
+	m_obs_switch = sw;
 }
 
 void
@@ -341,7 +366,7 @@ CoreDevice::ControlPacketConverted(Ptr<Packet> pkt) {
 	NS_ASSERT(pkt != NULL);
 
 	OBSControlHeader obsch;
-	NS_ASSERT(pkt->RemoveHeader(obsch) > 0);
+	NS_ASSERT(pkt->PeekHeader(obsch) > 0);
 
 	NS_LOG_INFO("Control packet:");
 	NS_LOG_INFO("Src " << obsch.GetSource());
@@ -349,6 +374,13 @@ CoreDevice::ControlPacketConverted(Ptr<Packet> pkt) {
 	NS_LOG_INFO("ID  " << obsch.GetBurstID());
 	NS_LOG_INFO("Siz " << obsch.GetBurstSize());
 	NS_LOG_INFO("Tim " << obsch.GetOffset());
+
+	if (m_obs_switch != NULL) {
+		m_obs_switch->ReceiveControlPacket(pkt);
+	} else {
+		NS_LOG_INFO("Switch not defined");
+	}
+
 }
 
 void

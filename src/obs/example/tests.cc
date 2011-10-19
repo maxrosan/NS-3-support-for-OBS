@@ -11,10 +11,96 @@
 #include "ns3/trace-helper.h"
 #include <iostream>
 #include <cstdio>
+#include <stdint.h>
+#include <vector>
+#include <string>
+#include <map>
 
 using namespace ns3;
+using std::cin;
+using std::cout;
 
 #define FUNC_OK fprintf(stderr, "%s OK\n", __func__)
+
+static void
+read_input() {
+	uint32_t n_nodes, // number of nodes
+	         i;
+	std::string type, name, nA, nB, sep;
+	NodeContainer nc;
+	std::map<std::string, uint32_t> map_node;
+
+	cin >> n_nodes;
+	nc.Create(n_nodes);
+
+	for (i = 0; i < n_nodes; i++) {
+		Ptr<OBSSwitch> obs_switch;
+
+		cin >> type >> name;
+		NS_ASSERT(type == std::string("node"));
+		
+		map_node[name] = i;
+		obs_switch = CreateObject<OBSSwitch>();
+		NS_ASSERT(obs_switch != NULL);
+		nc.Get(i)->AggregateObject(obs_switch);
+	}
+
+	LogComponentEnable("OBSDevice", LOG_LEVEL_INFO);
+
+	cin >> name;
+	NS_ASSERT(name == std::string("#"));
+
+	// no link is repeated
+	cin >> nA;
+	while (nA != std::string("#")) {
+		cin >> sep >> nB;
+		cout << nA << " --- " << nB << std::endl;
+
+		if (map_node.find(nA) == map_node.end() ||
+		 map_node.find(nB) == map_node.end()) {
+			cout << "Node node found" << std::endl;
+			return;
+		} else {
+			Ptr<OBSFiber> obschannel;
+			Ptr<CoreNodeDevice> dev1, dev2;
+			Ptr<Node> node1, node2;
+			Ptr<OBSSwitch> obss1, obss2;
+
+			node1 = nc.Get(map_node[nA]);
+			node2 = nc.Get(map_node[nB]);
+
+			obss1 = node1->GetObject<OBSSwitch>();
+			NS_ASSERT(obss1 != NULL);
+			obss2 = node2->GetObject<OBSSwitch>();
+			NS_ASSERT(obss2 != NULL);
+
+			obschannel = CreateObject<OBSFiber>();
+			NS_ASSERT(obschannel != NULL);
+			obschannel->SetAttribute("NumOfWL", UintegerValue(5));
+			obschannel->SetAttribute("Delay", TimeValue(Time("5ms")));
+			obschannel->SetAttribute("DataRate", DataRateValue(DataRate("10Gbps")));		
+
+			dev1 = CreateObject<CoreNodeDevice>();
+			dev2 = CreateObject<CoreNodeDevice>();
+
+			dev1->SetFiber(obschannel);
+			dev1->SetAddress(Mac48Address::Allocate());
+			dev1->SetSwitch(obss1);
+
+			dev2->SetFiber(obschannel);
+			dev2->SetAddress(Mac48Address::Allocate());
+			dev2->SetSwitch(obss2);
+
+			node1->AddDevice(dev1);
+			obss1->AddDevice(dev1);
+
+			node2->AddDevice(dev2);
+			obss2->AddDevice(dev2);
+		}
+
+		cin >> nA;
+	}
+}
 
 static void
 verify_obschannel() {
@@ -24,6 +110,7 @@ verify_obschannel() {
 	NodeContainer nodes;
 	Packet pkt, pkt1;
 	PacketBurst pb;
+	Ptr<OBSSwitch> obs_switch;
 
 	nodes.Create(4);
 
@@ -38,6 +125,9 @@ verify_obschannel() {
 
 	cd2 = CreateObject<CoreDevice>();
 	NS_ASSERT(cd2 != NULL);
+
+	obs_switch = CreateObject<OBSSwitch>();
+	NS_ASSERT(obs_switch != NULL);
 
 	LogComponentEnable("OBSDevice", LOG_LEVEL_INFO);
 
@@ -72,7 +162,9 @@ verify_obschannel() {
 
 int main(int argc, char **argv) {
 
-	verify_obschannel();
+	read_input();
 
 	return 0;
+	
+	verify_obschannel();
 }

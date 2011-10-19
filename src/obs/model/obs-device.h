@@ -80,12 +80,17 @@ public:
 };
 
 class OBSFiber;
-class OBSSwitch {
+class OBSSwitch : public Object {
 private:
 	std::map<Mac48Address, OBSRoutingTableTuple> m_routing_table;
+	std::list<Ptr<CoreDevice> > m_devices;
 public:
+	static TypeId GetTypeId(void);
+
 	OBSSwitch();
 	void AddRoute(Mac48Address, OBSRoutingTableTuple out);
+	void ReceiveControlPacket(Ptr<Packet> control_pkt);
+	void AddDevice(Ptr<CoreDevice> device);
 };
 
 struct WavelengthReceiver {
@@ -124,12 +129,14 @@ protected:
 	void TransmitComplete(uint32_t wavelength);
 	void FinishTransmitting();
 	void ControlPacketConverted(Ptr<Packet> pkt);
+	Ptr<OBSSwitch>     m_obs_switch;
 public:
 
 	static TypeId GetTypeId(void);
 
 	CoreDevice();
 
+	void SetSwitch(Ptr<OBSSwitch> sw);
 	void ChangeRoute(uint32_t wavelength, Ptr<CoreDevice> cd, uint32_t wavelength_dst);
 	void ReceiveBurstStart(uint32_t wavelength);
 	void ReceiveBurstEnd(uint32_t wavelength, Ptr<PacketBurst> pb);

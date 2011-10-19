@@ -1,0 +1,15 @@
+4
+node c0
+node c1
+node c2
+node c3
+#
+c0 - c1
+c1 - c2
+c2 - c3
+c3 - c0
+#
+Esquema:
+   c1 -- c2
+  /     /
+c0 -- c3
