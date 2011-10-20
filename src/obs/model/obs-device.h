@@ -77,6 +77,8 @@ public:
 	OBSRoutingTableTuple(Ptr<CoreDevice> out, uint32_t metric);
 	OBSRoutingTableTuple(const OBSRoutingTableTuple &tuple);
 	OBSRoutingTableTuple operator=(const OBSRoutingTableTuple &t);
+	Ptr<CoreDevice> getDevice(void);
+	uint32_t        getMetric(void);
 };
 
 class OBSFiber;
@@ -91,6 +93,8 @@ public:
 	void AddRoute(Mac48Address, OBSRoutingTableTuple out);
 	void ReceiveControlPacket(Ptr<Packet> control_pkt);
 	void AddDevice(Ptr<CoreDevice> device);
+	void PrintTable(std::ostream &os);
+	Ptr<CoreDevice> GetFirstInterface();
 };
 
 struct WavelengthReceiver {

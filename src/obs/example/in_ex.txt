@@ -12,6 +12,8 @@ c3 - c0
 path c1 c0 c3 ;
 path c0 c1 c2 ;
 #
+onoff c0 c3 9 1. 10.
+#
 Esquema:
    c1 -- c2
   /     /

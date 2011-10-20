@@ -9,6 +9,9 @@
 #include "ns3/node-container.h"
 #include "ns3/deprecated.h"
 #include "ns3/trace-helper.h"
+#include "ns3/internet-module.h"
+#include "ns3/applications-module.h"
+#include "ns3/network-module.h"
 #include <iostream>
 #include <cstdio>
 #include <stdint.h>
@@ -34,6 +37,7 @@ read_input() {
 	// [A][B] -> (Address, Device) => P/ enviar de A p/ B o destino tem endereço Address e o enlace de saída é Device
 	std::map<std::string, std::map<std::string, 
 	 std::pair<Mac48Address, Ptr<CoreDevice> > > > map_routing;
+	NetDeviceContainer ndc;
 
 	cin >> n_nodes;
 	nc.Create(n_nodes);
@@ -87,14 +91,18 @@ read_input() {
 
 			dev1 = CreateObject<CoreNodeDevice>();
 			dev2 = CreateObject<CoreNodeDevice>();
+			ndc.Add(dev1);
+			ndc.Add(dev2);
 
 			dev1->SetFiber(obschannel);
 			dev1->SetAddress(Mac48Address::Allocate());
 			dev1->SetSwitch(obss1);
+			dev1->SetMtu(1 << 15);
 
 			dev2->SetFiber(obschannel);
 			dev2->SetAddress(Mac48Address::Allocate());
 			dev2->SetSwitch(obss2);
+			dev2->SetMtu(1 << 15);
 
 			node1->AddDevice(dev1);
 			obss1->AddDevice(dev1);
@@ -155,6 +163,44 @@ read_input() {
 		cin >> type;
 	}
 
+
+	InternetStackHelper internet;
+	internet.Install(nc);
+
+	Ipv4AddressHelper ipv4;
+	ipv4.SetBase("10.1.1.0", "255.255.255.0");
+	Ipv4InterfaceContainer interfaces = ipv4.Assign(ndc);
+
+	cin >> type;
+	while (type != std::string("#")) {
+		std::string source, sink, addr;
+		uint32_t port;
+		double start, end;
+
+		cin >> source >> sink >> port >> start >> end;
+
+		if (type == std::string("onoff")) {
+			OnOffHelper onoff ("ns3::UdpSocketFactory", 
+					Address (InetSocketAddress(
+							interfaces.GetAddress (nc.Get(map_node[sink])->GetObject<OBSSwitch>()->GetFirstInterface()->GetIfIndex()), port)));
+			onoff.SetAttribute ("OnTime", RandomVariableValue (ConstantVariable (1)));
+			onoff.SetAttribute ("OffTime", RandomVariableValue (ConstantVariable (0)));
+
+			ApplicationContainer app = onoff.Install (nc.Get(map_node[source]));
+			// Start the application
+			app.Start (Seconds (start));
+			app.Stop (Seconds (end));
+			
+			PacketSinkHelper sinkh ("ns3::UdpSocketFactory",
+					Address (InetSocketAddress (Ipv4Address::GetAny (), port)));
+			app = sinkh.Install (nc.Get(map_node[sink]));
+			app.Start (Seconds (start));
+			app.Stop (Seconds (end));
+		}
+
+		cin >> type;
+	}
+
 	cout << "Interfaces" << std::endl;
 	for (
 	 std::map<std::string, uint32_t>::iterator it = map_node.begin();
@@ -170,8 +216,15 @@ read_input() {
 		for (j = 0; j < node->GetNDevices(); j++) {
 			cout << "IF " << Mac48Address::ConvertFrom(node->GetDevice(j)->GetAddress()) << std::endl;
 		}
+
+		cout << "Routing table" << std::endl;
+		node->GetObject<OBSSwitch>()->PrintTable(cout);
 	}
-	
+
+	cout << "Ready to go" << std::endl << std::endl << std::endl;
+
+	Simulator::Run ();
+	Simulator::Destroy ();
 }
 
 static void

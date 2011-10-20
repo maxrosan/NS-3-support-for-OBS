@@ -148,6 +148,16 @@ OBSRoutingTableTuple::operator=(const OBSRoutingTableTuple &t) {
 	return *this;
 }
 
+Ptr<CoreDevice>
+OBSRoutingTableTuple::getDevice(void) {
+	return m_out;
+}
+
+uint32_t
+OBSRoutingTableTuple::getMetric(void) {
+	return m_metric;
+}
+
 OBSSwitch::OBSSwitch() {
 
 }
@@ -174,6 +184,28 @@ OBSSwitch::ReceiveControlPacket(Ptr<Packet> control_pkt) {
 void
 OBSSwitch::AddDevice(Ptr<CoreDevice> device) {
 	m_devices.push_back(device);
+}
+
+void
+OBSSwitch::PrintTable(std::ostream &os) {
+	for (
+	 std::map<Mac48Address, OBSRoutingTableTuple>::iterator it = 
+	  m_routing_table.begin();
+	 it != m_routing_table.end();
+	 it++
+	) {
+		
+		os << it->first << " => [" 
+		 << Mac48Address::ConvertFrom(it->second.getDevice()->GetAddress())
+		 << " ] " << std::endl;
+
+	}
+}
+
+Ptr<CoreDevice>
+OBSSwitch::GetFirstInterface() {
+	NS_ASSERT(m_devices.empty() == false);
+	return *m_devices.begin();
 }
 
 //
@@ -498,7 +530,7 @@ CoreDevice::AddLinkChangeCallback(Callback<void> callback) {
 
 bool
 CoreDevice::IsBroadcast(void) const {
-	return false;
+	return true;
 }
 
 Address
@@ -562,7 +594,10 @@ CoreDevice::SupportsSendFrom(void) const {
 }
 
 bool
-CoreDevice::Send (Ptr< Packet > packet, const Address &dest, uint16_t protocolNumber) {
+CoreDevice::Send (Ptr< Packet > packet, const Address &dest, uint16_t protocolNumber)
+{
+
+	NS_LOG_INFO("Sending a packet unsupported!!! " <<  __func__);
 
 	return false;
 }
@@ -570,6 +605,8 @@ CoreDevice::Send (Ptr< Packet > packet, const Address &dest, uint16_t protocolNu
 
 bool
 CoreDevice::SendFrom (Ptr< Packet > packet, const Address &source, const Address &dest, uint16_t protocolNumber) {
+
+	NS_LOG_INFO("Sending a packet unsupported!!! " << __func__);
 
 	return false;
 
