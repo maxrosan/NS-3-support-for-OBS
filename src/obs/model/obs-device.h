@@ -25,10 +25,10 @@ namespace ns3 {
 
 enum TxMachineState
 {
-	READY,   /**< The transmitter is ready to begin transmission of a packet */
-	BUSY,    /**< The transmitter is busy transmitting a packet */
+	OBS_READY,   /**< The transmitter is ready to begin transmission of a packet */
+	OBS_BUSY,    /**< The transmitter is busy transmitting a packet */
 	//GAP,      /**< The transmitter is in the interframe gap time */
-	BACKOFF      /**< The transmitter is waiting for the channel to be free */
+	OBS_BACKOFF      /**< The transmitter is waiting for the channel to be free */
 };
 
 // Packets

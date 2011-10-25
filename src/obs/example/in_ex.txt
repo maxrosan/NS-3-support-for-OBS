@@ -12,8 +12,24 @@ c3 - c0
 path c1 c0 c3 ;
 path c0 c1 c2 ;
 #
-onoff c0 c3 9 1. 10.
+pp e1 c0
+pp e2 c2
 #
+#
+Sintaxe:
+# bloco 1
+número de nós
+node nome
+...
+# bloco 2 - relação entre os nós
+nome de nó 1 - nome de nó 2
+...
+# bloco 3 - caminho entre os nós
+path nome1 nome2 ... ;
+# bloco 4 - interfaces ethernet
+# bloco 5 - onoff
+source sink port start_time end_time
+
 Esquema:
    c1 -- c2
   /     /

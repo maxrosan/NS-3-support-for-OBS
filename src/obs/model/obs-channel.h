@@ -17,9 +17,9 @@ namespace ns3 {
 class Packet;
 
 enum ChannelState {
-	IDLE,
-	TRANSMITTING,
-	PROPAGATING,
+	OBS_IDLE,
+	OBS_TRANSMITTING,
+	OBS_PROPAGATING,
 };
 
 class CoreDevice;

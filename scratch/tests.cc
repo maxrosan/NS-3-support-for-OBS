@@ -1,5 +1,4 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-#include "ns3/callback.h"
 #include "ns3/assert.h"
 #include "ns3/obs-channel.h"
 #include "ns3/obs-device.h"
@@ -7,11 +6,13 @@
 #include "ns3/object-factory.h"
 #include "ns3/net-device-container.h"
 #include "ns3/node-container.h"
-#include "ns3/deprecated.h"
-#include "ns3/trace-helper.h"
 #include "ns3/internet-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/network-module.h"
+#include "ns3/csma-module.h"
+#include "ns3/core-module.h"
+#include "ns3/string.h"
+#include "ns3/point-to-point-module.h"
 #include <iostream>
 #include <cstdio>
 #include <stdint.h>
@@ -163,6 +164,34 @@ read_input() {
 		cin >> type;
 	}
 
+	std::map<std::string, uint32_t> map_pp_node;
+	NodeContainer ppc;
+
+	cin >> type;
+	while (type != std::string("#")) {
+		std::string pp_name, obsname;
+		NodeContainer ncLocal;
+		Ptr<Node> node;
+		PointToPointHelper ptph;
+		ptph.SetDeviceAttribute ("DataRate", StringValue ("100Mbps"));
+		ptph.SetChannelAttribute ("Delay", TimeValue (NanoSeconds (6560)));
+
+		cin >> pp_name >> obsname;
+
+		NS_ASSERT(type == std::string("pp"));
+		NS_ASSERT(map_node.find(obsname) != map_node.end());
+	
+		ppc.Create(1);
+		map_pp_node[pp_name] = ppc.GetN() - 1;
+		node = ppc.Get(ppc.GetN() - 1);
+
+		ncLocal.Add(node);
+		ncLocal.Add(nc.Get(map_node[obsname]));
+
+		ptph.Install(ncLocal);
+	
+		cin >> type;
+	}
 
 	InternetStackHelper internet;
 	internet.Install(nc);

@@ -212,7 +212,7 @@ OBSSwitch::GetFirstInterface() {
 
 WavelengthReceiver::WavelengthReceiver() {
 	wavelength = 0;
-	state = READY;
+	state = OBS_READY;
 }
 
 void
@@ -277,7 +277,7 @@ void
 CoreDevice::ReceiveBurstStart(uint32_t wavelength) {
 	NS_ASSERT(m_fiber != NULL);
 	
-	m_wr_state[wavelength].state = BUSY;
+	m_wr_state[wavelength].state = OBS_BUSY;
 
 	NS_LOG_INFO(m_addr << ": Receiving burst...");
 }
@@ -287,7 +287,7 @@ void
 CoreDevice::ReceiveBurstEnd(uint32_t wavelength, Ptr<PacketBurst> pkt) {
 	NS_ASSERT(m_fiber != NULL);
 
-	m_wr_state[wavelength].state = READY;
+	m_wr_state[wavelength].state = OBS_READY;
 
 	if (m_callback_burst != NULL) {
 		Simulator::Schedule(m_delay_to_process, m_callback_burst,
@@ -314,7 +314,7 @@ CoreDevice::SetFiber(Ptr<OBSFiber> fiber) {
 
 	for (i = 0; i < fiber->GetNumChannels(); i++) {
 		wr.wavelength = i+1;
-		wr.state = READY;
+		wr.state = OBS_READY;
 		m_wr_state.push_back(wr);
 
 		m_mux.push_back(std::make_pair(Ptr<CoreDevice>(NULL), 0));
@@ -327,7 +327,7 @@ CoreDevice::TransmitComplete(uint32_t wavelength) {
 	NS_LOG_INFO(m_addr << ": Transmission complete for wavelength " << wavelength);
 
 	m_fiber->TransmitEndBurstPacket(wavelength);
-	m_wr_state[wavelength].state = READY;
+	m_wr_state[wavelength].state = OBS_READY;
 }
 
 // What I am supposed to do when the fiber gets busy as soon as the packet is converted and ready to go?
@@ -338,7 +338,7 @@ CoreDevice::SendBurstAfterConverting(uint32_t wavelength, Ptr<PacketBurst> pkt) 
 
 	NS_LOG_INFO(m_addr << ": Packet converted");
 
-	if (m_fiber->GetState(wavelength) == IDLE) {
+	if (m_fiber->GetState(wavelength) == OBS_IDLE) {
 		Time transmit_time;
 		Time time_for_propagation;
 		DataRate data_rate;
@@ -356,7 +356,7 @@ CoreDevice::SendBurstAfterConverting(uint32_t wavelength, Ptr<PacketBurst> pkt) 
 		Simulator::Schedule(transmit_time, &CoreDevice::TransmitComplete, this, wavelength);
 	} else {
 		NS_LOG_INFO(m_addr << ": Fiber is not idle");
-		m_wr_state[wavelength].state = READY;
+		m_wr_state[wavelength].state = OBS_READY;
 	}
 }
 
@@ -370,13 +370,13 @@ CoreDevice::SendBurst(uint32_t wavelength, Ptr<PacketBurst> packet) {
 
 	NS_LOG_INFO(m_addr << ": Sending burst");
 
-	if (m_wr_state[wavelength].state == READY && m_fiber->GetState(wavelength) == IDLE) {
+	if (m_wr_state[wavelength].state == OBS_READY && m_fiber->GetState(wavelength) == OBS_IDLE) {
 		// Delay to convert eletric information into optical one
 		Simulator::Schedule(m_delay_to_conv_ele_opt,
 		 &CoreDevice::SendBurstAfterConverting,
 		 this, wavelength, copy_pkt);
 
-		m_wr_state[wavelength].state = BUSY;
+		m_wr_state[wavelength].state = OBS_BUSY;
 	
 		NS_LOG_INFO(m_addr << ": Converting packet... [" << m_delay_to_conv_ele_opt << "]");
 	

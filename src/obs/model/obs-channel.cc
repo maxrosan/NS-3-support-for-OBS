@@ -53,7 +53,7 @@ OBSFiber::OBSFiber():
 	m_current_burst = new Ptr<PacketBurst>[m_num_wavelength + 1]; // 0 is not used
 
 	for (i = 0; i <= m_num_wavelength; i++) {
-		m_channel_state[i] = IDLE;
+		m_channel_state[i] = OBS_IDLE;
 	}
 
 	m_points[0] = m_points[1] = NULL;
@@ -74,11 +74,11 @@ OBSFiber::GetDevice(uint32_t i) const {
 bool
 OBSFiber::TransmitStartControlPacket(Ptr<Packet> packet, uint8_t sender) {
 	
-	if (m_channel_state[0] != IDLE) {
+	if (m_channel_state[0] != OBS_IDLE) {
 		return false;
 	}
 
-	m_channel_state[0] = TRANSMITTING;
+	m_channel_state[0] = OBS_TRANSMITTING;
 	m_current_sender[0] = sender;
 	m_current_ctl_pkt = packet;
 
@@ -87,9 +87,9 @@ OBSFiber::TransmitStartControlPacket(Ptr<Packet> packet, uint8_t sender) {
 
 void
 OBSFiber::PropagationCompleteControlPacket() {
-	NS_ASSERT(m_channel_state[0] == PROPAGATING);
+	NS_ASSERT(m_channel_state[0] == OBS_PROPAGATING);
 
-	m_channel_state[0] = IDLE;
+	m_channel_state[0] = OBS_IDLE;
 
 	if (m_current_sender[0] == 0) {
 		m_points[1]->ReceiveControlPacket(m_current_ctl_pkt);
@@ -101,9 +101,9 @@ OBSFiber::PropagationCompleteControlPacket() {
 void
 OBSFiber::TransmitEndControlPacket() {
 
-	NS_ASSERT(m_channel_state[0] == TRANSMITTING);
+	NS_ASSERT(m_channel_state[0] == OBS_TRANSMITTING);
 	
-	m_channel_state[0] = PROPAGATING;
+	m_channel_state[0] = OBS_PROPAGATING;
 
 	// XXX: for each node is not the sender receives the control packet after propagation delay
 
@@ -119,11 +119,11 @@ OBSFiber::TransmitStartBurstPacket(Ptr<PacketBurst> burst, uint8_t wavelength, u
 
 	uint32_t wavelength_rcv;
 
-	if (m_channel_state[wavelength] != IDLE) {
+	if (m_channel_state[wavelength] != OBS_IDLE) {
 		return false;
 	}
 
-	m_channel_state[wavelength] = PROPAGATING;
+	m_channel_state[wavelength] = OBS_PROPAGATING;
 	m_current_sender[wavelength] = sender;
 	m_current_burst[wavelength] = burst;
 
@@ -145,14 +145,14 @@ OBSFiber::TransmitStartBurstPacket(Ptr<PacketBurst> burst, uint8_t wavelength, u
 void
 OBSFiber::PropagationCompleteBurstPacket(uint8_t wavelength) {
 	NS_ASSERT(wavelength > 0 && wavelength <= m_num_wavelength);
-	NS_ASSERT(m_channel_state[wavelength] == PROPAGATING);
+	NS_ASSERT(m_channel_state[wavelength] == OBS_PROPAGATING);
 
-	m_channel_state[wavelength] = TRANSMITTING;
+	m_channel_state[wavelength] = OBS_TRANSMITTING;
 }
 
 void
 OBSFiber::TransmitEndBurstPacket(uint8_t wavelength) {
-	NS_ASSERT(m_channel_state[wavelength] == TRANSMITTING);
+	NS_ASSERT(m_channel_state[wavelength] == OBS_TRANSMITTING);
 	NS_ASSERT(wavelength > 0 && wavelength <= m_num_wavelength);
 
 	uint32_t sender, dst;
@@ -165,7 +165,7 @@ OBSFiber::TransmitEndBurstPacket(uint8_t wavelength) {
 
 	m_points[dst]->ReceiveBurstEnd(wavelength, m_current_burst[wavelength]);
 
-	m_channel_state[wavelength] = IDLE;
+	m_channel_state[wavelength] = OBS_IDLE;
 }
 
 uint32_t
