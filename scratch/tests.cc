@@ -13,6 +13,7 @@
 #include "ns3/core-module.h"
 #include "ns3/string.h"
 #include "ns3/point-to-point-module.h"
+#include "ns3/bridge-helper.h"
 #include <iostream>
 #include <cstdio>
 #include <stdint.h>
@@ -21,6 +22,7 @@
 #include <map>
 #include <stack>
 #include <utility>
+#include <sstream>
 
 using namespace ns3;
 using std::cin;
@@ -38,7 +40,8 @@ read_input() {
 	// [A][B] -> (Address, Device) => P/ enviar de A p/ B o destino tem endereço Address e o enlace de saída é Device
 	std::map<std::string, std::map<std::string, 
 	 std::pair<Mac48Address, Ptr<CoreDevice> > > > map_routing;
-	NetDeviceContainer ndc;
+	NetDeviceContainer ndc, ndcOther;
+	std::map<std::string, Ptr<NetDevice> > map_devices;
 
 	cin >> n_nodes;
 	nc.Create(n_nodes);
@@ -56,6 +59,7 @@ read_input() {
 	}
 
 	LogComponentEnable("OBSDevice", LOG_LEVEL_INFO);
+	LogComponentEnable("PointToPointDevice", LOG_LEVEL_LOGIC);
 
 	cin >> name;
 	NS_ASSERT(name == std::string("#"));
@@ -159,72 +163,6 @@ read_input() {
 	
 			last = nod;
 			S.pop();
-		}
-
-		cin >> type;
-	}
-
-	std::map<std::string, uint32_t> map_pp_node;
-	NodeContainer ppc;
-
-	cin >> type;
-	while (type != std::string("#")) {
-		std::string pp_name, obsname;
-		NodeContainer ncLocal;
-		Ptr<Node> node;
-		PointToPointHelper ptph;
-		ptph.SetDeviceAttribute ("DataRate", StringValue ("100Mbps"));
-		ptph.SetChannelAttribute ("Delay", TimeValue (NanoSeconds (6560)));
-
-		cin >> pp_name >> obsname;
-
-		NS_ASSERT(type == std::string("pp"));
-		NS_ASSERT(map_node.find(obsname) != map_node.end());
-	
-		ppc.Create(1);
-		map_pp_node[pp_name] = ppc.GetN() - 1;
-		node = ppc.Get(ppc.GetN() - 1);
-
-		ncLocal.Add(node);
-		ncLocal.Add(nc.Get(map_node[obsname]));
-
-		ptph.Install(ncLocal);
-	
-		cin >> type;
-	}
-
-	InternetStackHelper internet;
-	internet.Install(nc);
-
-	Ipv4AddressHelper ipv4;
-	ipv4.SetBase("10.1.1.0", "255.255.255.0");
-	Ipv4InterfaceContainer interfaces = ipv4.Assign(ndc);
-
-	cin >> type;
-	while (type != std::string("#")) {
-		std::string source, sink, addr;
-		uint32_t port;
-		double start, end;
-
-		cin >> source >> sink >> port >> start >> end;
-
-		if (type == std::string("onoff")) {
-			OnOffHelper onoff ("ns3::UdpSocketFactory", 
-					Address (InetSocketAddress(
-							interfaces.GetAddress (nc.Get(map_node[sink])->GetObject<OBSSwitch>()->GetFirstInterface()->GetIfIndex()), port)));
-			onoff.SetAttribute ("OnTime", RandomVariableValue (ConstantVariable (1)));
-			onoff.SetAttribute ("OffTime", RandomVariableValue (ConstantVariable (0)));
-
-			ApplicationContainer app = onoff.Install (nc.Get(map_node[source]));
-			// Start the application
-			app.Start (Seconds (start));
-			app.Stop (Seconds (end));
-			
-			PacketSinkHelper sinkh ("ns3::UdpSocketFactory",
-					Address (InetSocketAddress (Ipv4Address::GetAny (), port)));
-			app = sinkh.Install (nc.Get(map_node[sink]));
-			app.Start (Seconds (start));
-			app.Stop (Seconds (end));
 		}
 
 		cin >> type;

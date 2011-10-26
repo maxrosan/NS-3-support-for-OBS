@@ -541,7 +541,7 @@ PointToPointNetDevice::SetNode (Ptr<Node> node)
 bool
 PointToPointNetDevice::NeedsArp (void) const
 {
-  return false;
+  return true;
 }
 
 void

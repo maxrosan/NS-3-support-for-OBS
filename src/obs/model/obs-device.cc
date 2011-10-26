@@ -624,4 +624,18 @@ BorderNodeDevice::BorderNodeDevice():
 
 }
 
+bool
+BorderNodeDevice::ReceivePacket(Ptr<NetDevice>, Ptr<const Packet>, uint16_t, const Address&) {
+
+	NS_LOG_INFO("PACKET RECEIVED");
+
+	return false;
+}
+
+void
+BorderNodeDevice::AddPort(Ptr<NetDevice> nd) {
+	nd->SetReceiveCallback(MakeCallback(&BorderNodeDevice::ReceivePacket, this));
+}
+
+
 };

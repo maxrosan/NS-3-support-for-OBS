@@ -184,8 +184,11 @@ public:
 };
 
 class BorderNodeDevice : public CoreDevice {
+private:
+	bool ReceivePacket(Ptr<NetDevice>, Ptr<const Packet>, uint16_t, const Address&);
 public:
 	BorderNodeDevice();
+	void AddPort(Ptr<NetDevice> nd);
 };
 
 };
