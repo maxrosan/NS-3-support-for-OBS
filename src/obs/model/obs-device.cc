@@ -208,6 +208,27 @@ OBSSwitch::GetFirstInterface() {
 	return *m_devices.begin();
 }
 
+uint32_t
+OBSSwitch::GetN() {
+	return m_devices.size();
+}
+
+
+static double global_stop_time = -1.;
+
+void
+OBSSwitch::SetStopTime(double stop_time) {
+
+	NS_ASSERT(stop_time > 0.);
+
+	global_stop_time = stop_time;
+}
+
+double
+OBSSwitch::GetStopTime(void) {
+	return global_stop_time;
+}
+
 //
 
 WavelengthReceiver::WavelengthReceiver() {
@@ -597,7 +618,7 @@ bool
 CoreDevice::Send (Ptr< Packet > packet, const Address &dest, uint16_t protocolNumber)
 {
 
-	NS_LOG_INFO("Sending a packet unsupported!!! " <<  __func__);
+	NS_LOG_INFO(m_addr << ": Sending a packet to " << Mac48Address::ConvertFrom(dest));
 
 	return false;
 }
@@ -606,22 +627,46 @@ CoreDevice::Send (Ptr< Packet > packet, const Address &dest, uint16_t protocolNu
 bool
 CoreDevice::SendFrom (Ptr< Packet > packet, const Address &source, const Address &dest, uint16_t protocolNumber) {
 
-	NS_LOG_INFO("Sending a packet unsupported!!! " << __func__);
+	NS_LOG_INFO(m_addr << ": Sending(From) a packet to " << Mac48Address::ConvertFrom(dest));
 
 	return false;
 
 }
 
 
+bool
+CoreDevice::ScheduleBurst(Ptr<PacketBurst> burst, double &time) {
+
+}
+
 CoreNodeDevice::CoreNodeDevice():
 	CoreDevice()
 {
 }
 
+bool
+CoreNodeDevice::Send (Ptr< Packet > packet, const Address &dest, uint16_t protocolNumber) {
+	
+	NS_LOG_INFO("Unsupported operation for a core node");
+	
+	return false;
+}
+
+bool
+CoreNodeDevice::SendFrom (Ptr< Packet > packet, const Address &source, const Address &dest, uint16_t protocolNumber) {
+
+	NS_LOG_INFO("Unsupported operation for a core node");
+
+	return false;
+}
+
 BorderNodeDevice::BorderNodeDevice():
 	CoreDevice()
 {
+	m_time_to_stop = -1.;
+	m_fap_interval = 3.;
 
+	Simulator::Schedule(Seconds(m_fap_interval), &BorderNodeDevice::FAPCheck, this);
 }
 
 bool
@@ -637,5 +682,54 @@ BorderNodeDevice::AddPort(Ptr<NetDevice> nd) {
 	nd->SetReceiveCallback(MakeCallback(&BorderNodeDevice::ReceivePacket, this));
 }
 
+bool
+BorderNodeDevice::Send (Ptr< Packet > packet, const Address &dest, uint16_t protocolNumber) {
+
+	Mac48Address addr;
+
+	addr = Mac48Address::ConvertFrom(dest);
+	m_queue[addr].push(std::make_pair(packet->Copy(), protocolNumber));
+	
+	return false;
+}
+
+bool
+BorderNodeDevice::SendFrom (Ptr< Packet > packet, const Address &source, const Address &dest, uint16_t protocolNumber) {
+
+	NS_LOG_INFO("Unsupported operation for a border node");
+
+	return false;
+}
+
+void
+BorderNodeDevice::SetStopTime(double time) {
+	m_time_to_stop = time;	
+}
+
+void
+BorderNodeDevice::SetFAPInterval(double interval) {
+	m_fap_interval = interval;
+}
+
+
+void
+BorderNodeDevice::FAPCheck(void) {
+	std::map<Mac48Address, std::queue<std::pair<Ptr<Packet>, uint16_t> > >::iterator it;
+
+	NS_LOG_INFO(Mac48Address::ConvertFrom(GetAddress()) << ": Checking FAP");
+
+	for (it = m_queue.begin(); it != m_queue.end(); it++) {
+		NS_LOG_INFO(it->first << " has packet to receive from me : " << it->second.size());
+	}
+
+	if (Simulator::Now() <= Seconds(m_time_to_stop)) {
+		Simulator::Schedule(Seconds(m_fap_interval), &BorderNodeDevice::FAPCheck, this);
+	}
+}
+
+void
+BorderNodeDevice::SetFAPSizeLimit(double size) {
+	m_fap_size_limit = size;
+}
 
 };

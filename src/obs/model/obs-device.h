@@ -20,6 +20,7 @@
 
 #include <map>
 #include <utility>
+#include <queue>
 
 namespace ns3 {
 
@@ -95,6 +96,9 @@ public:
 	void AddDevice(Ptr<CoreDevice> device);
 	void PrintTable(std::ostream &os);
 	Ptr<CoreDevice> GetFirstInterface();
+	uint32_t GetN(void);
+	static void SetStopTime(double stop_time);
+	static double GetStopTime(void);
 };
 
 struct WavelengthReceiver {
@@ -151,6 +155,8 @@ public:
 	bool SendControlPacket(const OBSControlHeader &header);
 	bool SendControlPacket(Mac48Address dst, uint32_t burst_id, uint32_t burst_size, uint32_t offset);
 
+	bool ScheduleBurst(Ptr<PacketBurst> burst, double &time);
+
 	virtual void SetIfIndex (const uint32_t index);
 	virtual uint32_t GetIfIndex (void) const;
 	virtual Ptr<Channel> GetChannel (void) const;
@@ -181,14 +187,26 @@ public:
 class CoreNodeDevice : public CoreDevice {
 public:
 	CoreNodeDevice();
+	virtual bool Send (Ptr< Packet > packet, const Address &dest, uint16_t protocolNumber);
+	virtual bool SendFrom (Ptr< Packet > packet, const Address &source, const Address &dest, uint16_t protocolNumber);
 };
 
 class BorderNodeDevice : public CoreDevice {
 private:
 	bool ReceivePacket(Ptr<NetDevice>, Ptr<const Packet>, uint16_t, const Address&);
+	std::map<Mac48Address, std::queue<std::pair<Ptr<Packet>,uint16_t> > > m_queue;
+	double m_time_to_stop;
+	double m_fap_interval;
+	double m_fap_size_limit;
+	void FAPCheck(void);
 public:
 	BorderNodeDevice();
 	void AddPort(Ptr<NetDevice> nd);
+	virtual bool Send (Ptr< Packet > packet, const Address &dest, uint16_t protocolNumber);
+	virtual bool SendFrom (Ptr< Packet > packet, const Address &source, const Address &dest, uint16_t protocolNumber);
+	void SetStopTime(double time);
+	void SetFAPInterval(double interval);
+	void SetFAPSizeLimit(double size);
 };
 
 };

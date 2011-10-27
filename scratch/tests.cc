@@ -30,18 +30,103 @@ using std::cout;
 
 #define FUNC_OK fprintf(stderr, "%s OK\n", __func__)
 
+enum NodeType { BORDER, CORE };
+
+uint32_t n_nodes, // number of nodes
+	 i;
+std::string type, name, nA, nB, sep;
+NodeContainer nc;
+std::map<std::string, uint32_t> map_node;
+// [A][B] -> (Address, Device) => P/ enviar de A p/ B o destino tem endereço Address e o enlace de saída é Device
+std::map<std::string, std::map<std::string, 
+	std::pair<Mac48Address, Ptr<CoreDevice> > > > map_routing;
+NetDeviceContainer ndc;
+std::map<std::string, Ptr<NetDevice> > map_devices;
+double stop_time = -1.;
+std::map<std::string, NodeType> map_type;
+
+static 
+void send_packet(std::string from, std::string to, double interval, double curr, double end) {
+	Ptr<Node> fromnode, tonode;
+	Ptr<OBSSwitch> obssf, obsst;
+	Ptr<CoreDevice> devfrom, devto;
+
+	fromnode = nc.Get(map_node[from]);
+	tonode   = nc.Get(map_node[to]);
+
+	obssf = fromnode->GetObject<OBSSwitch>();
+	obsst = tonode->GetObject<OBSSwitch>();
+	NS_ASSERT(obssf != NULL && obsst != NULL);
+	NS_ASSERT(obssf->GetN() == 1 && obsst->GetN() == 1);
+	
+	Packet pkt (1024);
+	
+	devfrom = obssf->GetFirstInterface();
+	devto   = obsst->GetFirstInterface();
+	NS_ASSERT(devfrom != NULL && devto != NULL);
+
+	devfrom->Send(pkt.Copy(), devto->GetAddress(), 0x101); // 0x101 = experimental
+
+	if (curr < end) {
+		Simulator::Schedule(Seconds(interval), send_packet, from, to, interval, curr+interval, end);
+	}
+
+}
+
+static void
+read_app(void) {
+	std::string in;
+
+	cin >> in;
+	while (in != std::string("#")) {
+
+		if (in == std::string("gen")) {
+			std::string from, to;
+			double interval, start, end;
+			Ptr<Node> from_node, to_node;
+
+			cin >> from >> to >> interval >> start >> end;
+
+			NS_ASSERT(map_node.find(from) != map_node.end());
+			NS_ASSERT(map_node.find(to)   != map_node.end());
+
+			cout << "gen (" << from << " , " << to << " , " << interval << ") \n";
+
+			Simulator::Schedule(Seconds(start), send_packet, from, to, interval, start, end);
+		} else {
+			NS_FATAL_ERROR("Invalid app");
+		}
+
+		cin >> in;
+	}
+
+
+	OBSSwitch::SetStopTime(stop_time);
+}
+
+static double fap_interval = 5.;
+static double fap_size_limit = 10000.;
+
+static void
+read_config() {
+	cin >> type;
+	while (type != std::string("#")) {
+		
+		if (type == std::string("stop")) {
+			cin >> stop_time;
+		} else if (type == std::string("FAP_interval")) {
+			cin >> fap_interval;
+		} else if (type == std::string("FAP_size_limit")) {
+			cin >> fap_size_limit;
+		} else
+			NS_FATAL_ERROR("Unknown config param");
+
+		cin >> type;
+	}
+}
+
 static void
 read_input() {
-	uint32_t n_nodes, // number of nodes
-	         i;
-	std::string type, name, nA, nB, sep;
-	NodeContainer nc;
-	std::map<std::string, uint32_t> map_node;
-	// [A][B] -> (Address, Device) => P/ enviar de A p/ B o destino tem endereço Address e o enlace de saída é Device
-	std::map<std::string, std::map<std::string, 
-	 std::pair<Mac48Address, Ptr<CoreDevice> > > > map_routing;
-	NetDeviceContainer ndc, ndcOther;
-	std::map<std::string, Ptr<NetDevice> > map_devices;
 
 	cin >> n_nodes;
 	nc.Create(n_nodes);
@@ -50,7 +135,15 @@ read_input() {
 		Ptr<OBSSwitch> obs_switch;
 
 		cin >> type >> name;
-		NS_ASSERT(type == std::string("node"));
+		//NS_ASSERT(type == std::string("node"));
+		NS_ASSERT(map_node.find(name) == map_node.end());		
+
+		if (type == std::string("node")) {
+			map_type[name] = CORE;
+		} else if (type == std::string("border")) {
+			map_type[name] = BORDER;
+		} else
+			NS_FATAL_ERROR("Node not found");
 		
 		map_node[name] = i;
 		obs_switch = CreateObject<OBSSwitch>();
@@ -61,8 +154,10 @@ read_input() {
 	LogComponentEnable("OBSDevice", LOG_LEVEL_INFO);
 	LogComponentEnable("PointToPointDevice", LOG_LEVEL_LOGIC);
 
-	cin >> name;
-	NS_ASSERT(name == std::string("#"));
+	cin >> type;
+	NS_ASSERT(type == std::string("#"));
+
+	read_config();
 
 	// no link is repeated
 	cin >> nA;
@@ -72,11 +167,11 @@ read_input() {
 
 		if (map_node.find(nA) == map_node.end() ||
 		 map_node.find(nB) == map_node.end()) {
-			cout << "Node node found" << std::endl;
+			cout << "Node " << nA << " node found" << std::endl;
 			return;
 		} else {
 			Ptr<OBSFiber> obschannel;
-			Ptr<CoreNodeDevice> dev1, dev2;
+			Ptr<CoreDevice> dev1, dev2;
 			Ptr<Node> node1, node2;
 			Ptr<OBSSwitch> obss1, obss2;
 
@@ -94,8 +189,29 @@ read_input() {
 			obschannel->SetAttribute("Delay", TimeValue(Time("5ms")));
 			obschannel->SetAttribute("DataRate", DataRateValue(DataRate("10Gbps")));		
 
-			dev1 = CreateObject<CoreNodeDevice>();
-			dev2 = CreateObject<CoreNodeDevice>();
+			if (map_type[nA] == CORE)
+				dev1 = CreateObject<CoreNodeDevice>();
+			else {
+				Ptr<BorderNodeDevice> bn;
+				bn = CreateObject<BorderNodeDevice>();
+				bn->SetStopTime(stop_time);
+				bn->SetFAPInterval(fap_interval);
+				bn->SetFAPSizeLimit(fap_size_limit);
+				dev1 = bn;
+			}
+
+			if (map_type[nB] == CORE)
+				dev2 = CreateObject<CoreNodeDevice>();
+			else {
+				Ptr<BorderNodeDevice> bn;
+				bn = CreateObject<BorderNodeDevice>();
+				bn->SetStopTime(stop_time);
+				bn->SetFAPInterval(fap_interval);
+				bn->SetFAPSizeLimit(fap_size_limit);
+				dev1 = bn;
+				dev2 = bn;
+			}
+
 			ndc.Add(dev1);
 			ndc.Add(dev2);
 
@@ -167,6 +283,9 @@ read_input() {
 
 		cin >> type;
 	}
+
+
+	read_app();
 
 	cout << "Interfaces" << std::endl;
 	for (

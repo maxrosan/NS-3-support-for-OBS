@@ -1,16 +1,33 @@
-4
+8
 node c0
 node c1
 node c2
 node c3
+border c4
+border c5
+border c6
+border c7
+#
+stop 15.
+FAP_interval 5.
+FAP_size_limit 10000
 #
 c0 - c1
 c1 - c2
 c2 - c3
 c3 - c0
+c4 - c0
+c5 - c2
+c2 - c6
+c3 - c7
 #
-path c1 c0 c3 ;
-path c0 c1 c2 ;
+path c4 c0 c1 c2 c5 ;
+path c4 c0 c3 c2 c6 ;
+path c4 c0 c3 c7 ;
+#
+gen c4 c6 1. 1. 10.
+gen c4 c5 1. 1. 10.
+gen c4 c7 1. 1. 10.
 #
 Sintaxe:
 # bloco
@@ -23,7 +40,9 @@ nome de nó 1 - nome de nó 2
 # bloco - caminho entre os nós
 path nome1 nome2 ... ;
 
-Esquema:
-   c1 -- c2
-  /     /
-c0 -- c3
+Esquema: 
+               c6
+              /
+       c1 -- c2 - c5
+      /     /
+c4 - c0 -- c3 - c7
