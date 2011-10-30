@@ -208,7 +208,6 @@ read_input() {
 				bn->SetStopTime(stop_time);
 				bn->SetFAPInterval(fap_interval);
 				bn->SetFAPSizeLimit(fap_size_limit);
-				dev1 = bn;
 				dev2 = bn;
 			}
 

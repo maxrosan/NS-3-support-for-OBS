@@ -66,6 +66,26 @@ public:
 
 };
 
+
+class OBSPacketHeader : public Header {
+private:
+	uint32_t     m_proto_number;
+public:
+	OBSPacketHeader();
+	virtual ~OBSPacketHeader();
+
+	void SetProtocolNumber(uint32_t offset);
+	uint32_t GetProtocolNumber(void);
+
+	static TypeId GetTypeId (void);
+	virtual TypeId GetInstanceTypeId (void) const;
+	virtual void Print (std::ostream &os) const;
+	virtual void Serialize (Buffer::Iterator start) const;
+	virtual uint32_t Deserialize (Buffer::Iterator start);
+	virtual uint32_t GetSerializedSize (void) const;
+
+};
+
 //
 
 class CoreDevice;
@@ -110,7 +130,6 @@ struct WavelengthReceiver {
 	void CopyFrom(const WavelengthReceiver &wr);
 	WavelengthReceiver operator=(const WavelengthReceiver &wr);
 };
-
 
 class CoreDevice : public NetDevice{
 protected:
@@ -191,10 +210,15 @@ public:
 	virtual bool SendFrom (Ptr< Packet > packet, const Address &source, const Address &dest, uint16_t protocolNumber);
 };
 
+struct BNDScheduleEntity{
+	
+};
+
 class BorderNodeDevice : public CoreDevice {
 private:
 	bool ReceivePacket(Ptr<NetDevice>, Ptr<const Packet>, uint16_t, const Address&);
 	std::map<Mac48Address, std::queue<std::pair<Ptr<Packet>,uint16_t> > > m_queue;
+	std::map<uint32_t, std::list<BNDScheduleEntity> > m_schedule; // wavelength -> burst
 	double m_time_to_stop;
 	double m_fap_interval;
 	double m_fap_size_limit;
@@ -207,6 +231,7 @@ public:
 	void SetStopTime(double time);
 	void SetFAPInterval(double interval);
 	void SetFAPSizeLimit(double size);
+	void ScheduleBurst(Ptr<PacketBurst> pb);
 };
 
 };

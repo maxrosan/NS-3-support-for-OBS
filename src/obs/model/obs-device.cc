@@ -124,6 +124,63 @@ OBSControlHeader::GetSerializedSize(void) const {
 	);
 }
 
+OBSPacketHeader::OBSPacketHeader() {
+	m_proto_number = 0;
+}
+
+OBSPacketHeader::~OBSPacketHeader() {
+}
+
+void
+OBSPacketHeader::SetProtocolNumber(uint32_t proto) {
+	m_proto_number  = proto;
+}
+
+uint32_t
+OBSPacketHeader::GetProtocolNumber(void) {
+	return m_proto_number;
+}
+
+TypeId
+OBSPacketHeader::GetTypeId(void) {
+	static TypeId tid = TypeId("ns3::OBSPacketHeader")
+		.SetParent<Header>()
+		.AddConstructor<OBSPacketHeader>()
+	;
+
+	return tid;
+}
+
+TypeId
+OBSPacketHeader::GetInstanceTypeId(void) const {
+	return GetTypeId();
+}
+
+void
+OBSPacketHeader::Print(std::ostream &os) const {
+	os << "[ proto = " << m_proto_number << " ]";
+}
+
+void
+OBSPacketHeader::Serialize(Buffer::Iterator start) const {
+	start.WriteHtonU32(m_proto_number);
+}
+
+uint32_t
+OBSPacketHeader::Deserialize(Buffer::Iterator start) {
+	m_proto_number = start.ReadNtohU32();
+
+	return GetSerializedSize();
+}
+
+uint32_t
+OBSPacketHeader::GetSerializedSize(void) const {
+	return (
+		(sizeof m_proto_number)
+		
+	);
+}
+
 //
 
 OBSRoutingTableTuple::OBSRoutingTableTuple() {
@@ -633,12 +690,6 @@ CoreDevice::SendFrom (Ptr< Packet > packet, const Address &source, const Address
 
 }
 
-
-bool
-CoreDevice::ScheduleBurst(Ptr<PacketBurst> burst, double &time) {
-
-}
-
 CoreNodeDevice::CoreNodeDevice():
 	CoreDevice()
 {
@@ -712,6 +763,12 @@ BorderNodeDevice::SetFAPInterval(double interval) {
 }
 
 
+
+void
+BorderNodeDevice::ScheduleBurst(Ptr<PacketBurst> pb) {
+
+}
+
 void
 BorderNodeDevice::FAPCheck(void) {
 	std::map<Mac48Address, std::queue<std::pair<Ptr<Packet>, uint16_t> > >::iterator it;
@@ -719,7 +776,23 @@ BorderNodeDevice::FAPCheck(void) {
 	NS_LOG_INFO(Mac48Address::ConvertFrom(GetAddress()) << ": Checking FAP");
 
 	for (it = m_queue.begin(); it != m_queue.end(); it++) {
+		uint32_t total_size = 0;
+		Ptr<PacketBurst> pb = CreateObject<PacketBurst>();
 		NS_LOG_INFO(it->first << " has packet to receive from me : " << it->second.size());
+		while (!it->second.empty() &&
+		 (it->second.front().first->GetSize() + total_size) < m_fap_size_limit) {
+			Ptr<Packet> pkt;
+			OBSPacketHeader obsh;
+			obsh.SetProtocolNumber(it->second.front().second);
+			pkt = it->second.front().first;
+			pkt->AddHeader(obsh);
+			NS_LOG_INFO("Burst: + " << pkt->GetSize());
+			it->second.pop();
+			pb->AddPacket(pkt->Copy());
+		}
+		if (total_size > 0) {
+			ScheduleBurst(pb);
+		}
 	}
 
 	if (Simulator::Now() <= Seconds(m_time_to_stop)) {
