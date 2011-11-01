@@ -711,6 +711,36 @@ CoreNodeDevice::SendFrom (Ptr< Packet > packet, const Address &source, const Add
 	return false;
 }
 
+BNDScheduleEntity::BNDScheduleEntity() {
+
+}
+
+BNDScheduleEntity::BNDScheduleEntity(uint32_t id, Time start, Time end, Ptr<PacketBurst> pkt, Mac48Address dest) {
+	m_start  = start;
+	m_end    = end;
+	m_packet = pkt->Copy();
+	m_id     = id;
+	m_dest   = dest;
+}
+
+BNDScheduleEntity::BNDScheduleEntity(const BNDScheduleEntity &c) {
+	m_start  = c.m_start;
+	m_end    = c.m_end;
+	m_packet = c.m_packet->Copy();
+	m_id     = c.m_id;
+	m_dest   = c.m_dest;
+}
+
+BNDScheduleEntity BNDScheduleEntity::operator=(const BNDScheduleEntity &c) {
+	m_start  = c.m_start;
+	m_end    = c.m_end;
+	m_packet = c.m_packet->Copy();
+	m_id     = c.m_id;
+	m_dest   = c.m_dest;
+
+	return *this;
+}
+
 BorderNodeDevice::BorderNodeDevice():
 	CoreDevice()
 {
@@ -763,10 +793,144 @@ BorderNodeDevice::SetFAPInterval(double interval) {
 }
 
 
+void
+BorderNodeDevice::BurstScheduling(BNDScheduleEntity e) {
+	NS_LOG_INFO("Sending packet at " << e.m_start);
+}
 
 void
-BorderNodeDevice::ScheduleBurst(Ptr<PacketBurst> pb) {
+BorderNodeDevice::ScheduleBurst(Mac48Address dest, Ptr<PacketBurst> pb) {
 
+	NS_ASSERT(m_fiber != NULL);
+
+	uint32_t i;
+	Time transmit_time;
+	DataRate data_rate;
+	Time GAP = Seconds(0.25);
+	static uint32_t id = 1;
+	BNDScheduleEntity new_burst;
+	uint32_t curr_channel = 0;
+	Time start_time = Seconds(10000000L); //XXX: !!
+	uint32_t after_id = 0;
+	
+	new_burst.m_id     = id++;
+	new_burst.m_packet = pb->Copy();
+	new_burst.m_dest   = dest;
+
+	data_rate = m_fiber->GetDataRate();
+	transmit_time = Seconds(data_rate.CalculateTxTime(pb->GetSize())) + m_delay_to_conv_ele_opt + GAP + GAP; // [ Other burster ]__ [ GAP ] [ Transmitting packet + delay ] [ GAT ] __ [ Other burst ]
+
+
+	//NS_LOG_INFO("Delay = " << m_delay_to_conv_ele_opt.GetSeconds());
+	//NS_LOG_INFO("PKT SIZE = " << pb->GetSize());
+	//NS_LOG_INFO("Transmit time = " << transmit_time.GetSeconds());
+
+	for (i = 1; i <= m_fiber->GetNumChannels(); i++) {
+		std::list<BNDScheduleEntity>::iterator it;
+		std::list<BNDScheduleEntity> &l = m_schedule[i];
+
+		//NS_LOG_INFO("Verifying channel " << i);
+		
+		if (l.empty()) {
+			Time m_start;
+			
+			m_start = Seconds(Simulator::Now().GetSeconds());
+			if (m_start < start_time) {
+				start_time = m_start;
+				curr_channel = i;
+				after_id = 0;
+			}
+
+			//NS_LOG_INFO("Empty channel " << curr_channel << " " << m_start.GetSeconds() << " " << m_start.GetSeconds());
+
+		} else {
+			bool found = false;
+
+			for (it = l.begin(); it != l.end();) {
+				std::list<BNDScheduleEntity>::iterator curr;
+
+				if (it->m_end < Simulator::Now()) {
+					it++;
+					continue;
+				}
+
+				curr = it;
+				it++;
+				found = true;
+
+				if (it != l.end()) {
+					if ((it->m_start - curr->m_end) >= transmit_time) {
+						if (start_time > curr->m_end) {
+							curr_channel = i;
+							start_time = curr->m_end;
+							it = l.end();
+							after_id = curr->m_id;
+						}
+					}
+				} else {
+
+					//NS_LOG_INFO("Here " << start_time.GetSeconds() << " " << curr->m_end.GetSeconds());
+
+					if (start_time > curr->m_end) {
+						curr_channel = i;
+						start_time = curr->m_end;
+						after_id = curr->m_id;
+					}
+				}
+			}
+
+			if (!found) {
+				Time m_start;
+
+				m_start = Simulator::Now();
+				if (m_start < start_time) {
+					start_time = m_start;
+					curr_channel = i;
+					after_id = 0;
+				}
+			}
+		}
+	}
+
+
+	{
+		std::list<BNDScheduleEntity>::iterator it, end_it;
+
+		new_burst.m_start = start_time + GAP;
+		new_burst.m_end = Seconds(new_burst.m_start.GetSeconds() + transmit_time.GetSeconds() - GAP.GetSeconds());
+
+		//NS_LOG_INFO("BURST [ " << new_burst.m_start.GetSeconds() << " " << new_burst.m_end.GetSeconds() << "]{" << transmit_time.GetSeconds() << "} [" << curr_channel << "] # " << after_id << " #");
+
+		end_it = m_schedule[curr_channel].end();
+		it = m_schedule[curr_channel].begin();
+
+		if (after_id == 0)
+			m_schedule[curr_channel].push_back(new_burst);
+		else {
+			for (; it != end_it; it++) {
+				if (it->m_id == after_id) {
+					it++;
+					if (it == end_it) {
+						m_schedule[curr_channel].push_back(new_burst);
+						//NS_LOG_INFO("At last position");
+					} else {
+						m_schedule[curr_channel].insert(it, new_burst);
+						//NS_LOG_INFO("After " << after_id);
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	NS_LOG_INFO(__func__ <<
+	 " channel = " << curr_channel << "\n" <<
+	 " now    = " << Simulator::Now().GetSeconds() << "s\n" <<
+	 " start  = " << new_burst.m_start.GetSeconds() << "s\n"
+	 " schedule at " << ((new_burst.m_start) - Simulator::Now()).GetSeconds()
+	);
+
+	//Simulator::Schedule(Seconds(new_burst.m_start) - Simulator::Now(), &BorderNodeDevice::BurstScheduling, this, new_burst);
 }
 
 void
@@ -783,6 +947,7 @@ BorderNodeDevice::FAPCheck(void) {
 		 (it->second.front().first->GetSize() + total_size) < m_fap_size_limit) {
 			Ptr<Packet> pkt;
 			OBSPacketHeader obsh;
+			total_size += it->second.front().first->GetSize();
 			obsh.SetProtocolNumber(it->second.front().second);
 			pkt = it->second.front().first;
 			pkt->AddHeader(obsh);
@@ -791,7 +956,7 @@ BorderNodeDevice::FAPCheck(void) {
 			pb->AddPacket(pkt->Copy());
 		}
 		if (total_size > 0) {
-			ScheduleBurst(pb);
+			ScheduleBurst(it->first, pb);
 		}
 	}
 

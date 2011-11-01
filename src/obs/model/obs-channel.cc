@@ -20,7 +20,7 @@ OBSFiber::GetTypeId(void) {
 		.SetParent<Channel>()
 		.AddConstructor<OBSFiber>()
 		.AddAttribute("DataRate", "Transmission rate",
-			DataRateValue(DataRate("10Gbps")),
+			DataRateValue(DataRate("10Gib/s")),
 			MakeDataRateAccessor(&OBSFiber::m_bps),
 			MakeDataRateChecker())
 		.AddAttribute("Delay", "Transmission delay",

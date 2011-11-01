@@ -211,7 +211,16 @@ public:
 };
 
 struct BNDScheduleEntity{
-	
+	Time             m_start,    
+	                 m_end;
+	Ptr<PacketBurst> m_packet;
+	Mac48Address     m_dest;
+	uint32_t         m_id;
+
+	BNDScheduleEntity();
+	BNDScheduleEntity(uint32_t id, Time start, Time end, Ptr<PacketBurst> pkt, Mac48Address dest);
+	BNDScheduleEntity(const BNDScheduleEntity &c);
+	BNDScheduleEntity operator=(const BNDScheduleEntity &c);
 };
 
 class BorderNodeDevice : public CoreDevice {
@@ -223,6 +232,7 @@ private:
 	double m_fap_interval;
 	double m_fap_size_limit;
 	void FAPCheck(void);
+	void BurstScheduling(BNDScheduleEntity e);
 public:
 	BorderNodeDevice();
 	void AddPort(Ptr<NetDevice> nd);
@@ -231,7 +241,7 @@ public:
 	void SetStopTime(double time);
 	void SetFAPInterval(double interval);
 	void SetFAPSizeLimit(double size);
-	void ScheduleBurst(Ptr<PacketBurst> pb);
+	void ScheduleBurst(Mac48Address dest, Ptr<PacketBurst> pb);
 };
 
 };
