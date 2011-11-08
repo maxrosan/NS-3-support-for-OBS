@@ -275,7 +275,6 @@ static double global_stop_time = -1.;
 
 void
 OBSSwitch::SetStopTime(double stop_time) {
-
 	NS_ASSERT(stop_time > 0.);
 
 	global_stop_time = stop_time;
@@ -284,6 +283,15 @@ OBSSwitch::SetStopTime(double stop_time) {
 double
 OBSSwitch::GetStopTime(void) {
 	return global_stop_time;
+}
+
+bool
+OBSSwitch::GetTuple(Mac48Address dest, OBSRoutingTableTuple &t) {
+	if (m_routing_table.find(dest) != m_routing_table.end()) {
+		t = m_routing_table[dest];
+		return true;
+	}
+	return false;
 }
 
 //
@@ -474,6 +482,7 @@ CoreDevice::GetID(void) {
 void
 CoreDevice::ControlPacketConverted(Ptr<Packet> pkt) {
 	NS_ASSERT(pkt != NULL);
+	NS_ASSERT(m_fiber != NULL);
 
 	OBSControlHeader obsch;
 	NS_ASSERT(pkt->PeekHeader(obsch) > 0);
@@ -500,7 +509,7 @@ CoreDevice::ReceiveControlPacket(Ptr<Packet> pkt) {
 
 	Time delay_total = m_delay_to_conv_ele_opt + m_delay_to_process;
 
-	NS_LOG_INFO(m_addr << ": Control pkt received");
+	NS_LOG_INFO(Simulator::Now().GetSeconds() << "s : " << m_addr << ": Control pkt received");
 
 	Simulator::Schedule(delay_total, &CoreDevice::ControlPacketConverted, this, pkt);
 }
@@ -546,7 +555,7 @@ CoreDevice::SendControlPacket(const OBSControlHeader &header) {
 
 		time_for_converting = m_delay_to_conv_ele_opt;
 		data_rate = m_fiber->GetDataRate();
-		transmit_time = Seconds(data_rate.CalculateTxTime(pkt_ptr->GetSize())) + Seconds(time_for_converting);
+		transmit_time = Seconds(data_rate.CalculateTxTime(pkt_ptr->GetSize())) + time_for_converting;
 		
 		Simulator::Schedule(transmit_time,
 		 &CoreDevice::FinishTransmitting,
@@ -554,7 +563,8 @@ CoreDevice::SendControlPacket(const OBSControlHeader &header) {
 
 		return true;
 	} else {
-		NS_LOG_INFO(m_addr << ": Failed to send control packet");
+		NS_LOG_INFO(m_addr << ": Failed to send control packet. Pkt in queue...");
+		m_ctrlpkt_queue.push(pkt_ptr);
 	}
 
 	return false;
@@ -794,8 +804,20 @@ BorderNodeDevice::SetFAPInterval(double interval) {
 
 
 void
-BorderNodeDevice::BurstScheduling(BNDScheduleEntity e) {
-	NS_LOG_INFO("Sending packet at " << e.m_start);
+BorderNodeDevice::BurstScheduling(BNDScheduleEntity e, uint32_t channel) {
+	
+	std::list<BNDScheduleEntity> &bursts = m_schedule[channel];
+	std::list<BNDScheduleEntity>::iterator it;
+	bool found = false;
+
+	NS_LOG_INFO("Sending packet at " << e.m_start << " ; id = " << e.m_id);
+
+	for (it = bursts.begin(); (it != bursts.end()) && !found; it++) {
+		if (it->m_id == e.m_id) {
+			found = true;
+			bursts.erase(it);
+		}
+	}
 }
 
 void
@@ -806,7 +828,7 @@ BorderNodeDevice::ScheduleBurst(Mac48Address dest, Ptr<PacketBurst> pb) {
 	uint32_t i;
 	Time transmit_time;
 	DataRate data_rate;
-	Time GAP = Seconds(0.25);
+	Time GAP = Seconds(1.);
 	static uint32_t id = 1;
 	BNDScheduleEntity new_burst;
 	uint32_t curr_channel = 0;
@@ -930,7 +952,30 @@ BorderNodeDevice::ScheduleBurst(Mac48Address dest, Ptr<PacketBurst> pb) {
 	 " schedule at " << ((new_burst.m_start) - Simulator::Now()).GetSeconds()
 	);
 
-	//Simulator::Schedule(Seconds(new_burst.m_start) - Simulator::Now(), &BorderNodeDevice::BurstScheduling, this, new_burst);
+	GenerateControlPacket(curr_channel, new_burst);
+
+	Simulator::Schedule(Seconds((new_burst.m_start - Simulator::Now()).GetSeconds()), &BorderNodeDevice::BurstScheduling, this, new_burst, curr_channel);
+}
+
+
+void
+BorderNodeDevice::GenerateControlPacket(uint32_t channel, BNDScheduleEntity e) {
+	NS_ASSERT(m_obs_switch != NULL);
+
+	OBSRoutingTableTuple tuple;
+
+	if (m_obs_switch->GetTuple(e.m_dest, tuple)) {
+		uint32_t pkttime;
+		NS_ASSERT(tuple.getDevice() != NULL);
+
+		pkttime = (uint32_t) (((e.m_start) - Simulator::Now()).GetSeconds() * 1000.);
+
+		NS_LOG_INFO("Route found to " << e.m_dest);
+		
+		tuple.getDevice()->SendControlPacket(e.m_dest, e.m_id, e.m_packet->GetSize(), pkttime);
+	} else {
+		NS_LOG_INFO("Route not found to " << e.m_dest);
+	}
 }
 
 void

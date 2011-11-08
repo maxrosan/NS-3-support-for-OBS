@@ -119,6 +119,7 @@ public:
 	uint32_t GetN(void);
 	static void SetStopTime(double stop_time);
 	static double GetStopTime(void);
+	bool GetTuple(Mac48Address, OBSRoutingTableTuple &t);
 };
 
 struct WavelengthReceiver {
@@ -146,6 +147,7 @@ protected:
 	PromiscReceiveCallback m_pms_rcv_cb;
 	std::vector<WavelengthReceiver> m_wr_state;
 	void (*m_callback_burst) (Ptr<PacketBurst>);
+	std::queue<Ptr<Packet> > m_ctrlpkt_queue;
 
 	Time              m_delay_to_process;
 	Time              m_delay_to_conv_ele_opt;
@@ -232,7 +234,8 @@ private:
 	double m_fap_interval;
 	double m_fap_size_limit;
 	void FAPCheck(void);
-	void BurstScheduling(BNDScheduleEntity e);
+	void BurstScheduling(BNDScheduleEntity e, uint32_t channel);
+	void GenerateControlPacket(uint32_t channel, BNDScheduleEntity e);
 public:
 	BorderNodeDevice();
 	void AddPort(Ptr<NetDevice> nd);
