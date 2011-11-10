@@ -44,6 +44,7 @@ private:
 	uint32_t     m_offset; // time needed for the burst get the router (in ms)
 	uint32_t     m_channel;
 	uint32_t     m_now;
+	uint32_t     m_duration;
 public:
 	OBSControlHeader();
 	virtual ~OBSControlHeader();
@@ -62,6 +63,8 @@ public:
 	uint32_t GetChannel(void);
 	void SetNow(uint32_t now);
 	uint32_t GetNow(void);
+	void SetDuration(uint32_t duration);
+	uint32_t GetDuration(void);
 
 	static TypeId GetTypeId (void);
 	virtual TypeId GetInstanceTypeId (void) const;
@@ -185,7 +188,7 @@ public:
 	uint32_t GetID();
 	void ReceiveControlPacket(Ptr<Packet> pkt);
 	bool SendControlPacket(const OBSControlHeader &header);
-	bool SendControlPacket(Mac48Address dst, uint32_t burst_id, uint32_t burst_size, uint32_t offset, uint32_t channel, uint32_t now);
+	bool SendControlPacket(Mac48Address dst, uint32_t burst_id, uint32_t burst_size, uint32_t offset, uint32_t channel, uint32_t now, uint32_t duration);
 
 	bool ScheduleBurst(Ptr<PacketBurst> burst, double &time);
 
@@ -213,13 +216,16 @@ public:
 	virtual void SetReceiveCallback (ReceiveCallback cb);
 	virtual void SetPromiscReceiveCallback (PromiscReceiveCallback cb);
 	virtual bool SupportsSendFrom (void) const;
-
+	virtual void RemoveSchedule(uint32_t channel, uint32_t id);
+	virtual bool Schedule(Time start, Time offset, uint32_t channel, Ptr<CoreDevice> dev, uint32_t &id);
 };
 
 struct CNDTuple {
 	Time            m_start;
 	Time            m_offset;
 	Ptr<CoreDevice> m_dev;
+	uint32_t        m_id;
+	uint32_t        m_channel;
 
 	CNDTuple();
 	CNDTuple(const CNDTuple &t);
@@ -230,10 +236,13 @@ class CoreNodeDevice : public CoreDevice {
 private:
 	void RouteControlPacket(Ptr<Packet> control_pkt);
 	std::map<uint32_t, std::list<CNDTuple> > m_map_schedule;
+	// id of tuple -> (device, channel)
+	std::map<uint32_t, std::pair<Ptr<CoreDevice>, uint32_t> > m_map_channel;
 
 	void FreeChannel(CNDTuple tuple);
 	void AllocChannel(CNDTuple tuple);
-	bool Schedule(Time start, Time offset, uint32_t channel, Ptr<CoreDevice> dev);
+	virtual void RemoveSchedule(uint32_t channel, uint32_t id);
+	virtual bool Schedule(Time start, Time offset, uint32_t channel, Ptr<CoreDevice> dev, uint32_t &id);
 public:
 	CoreNodeDevice();
 	virtual bool Send (Ptr< Packet > packet, const Address &dest, uint16_t protocolNumber);
