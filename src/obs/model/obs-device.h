@@ -42,6 +42,8 @@ private:
 	uint32_t     m_burst_id;
 	uint32_t     m_burst_size;
 	uint32_t     m_offset; // time needed for the burst get the router (in ms)
+	uint32_t     m_channel;
+	uint32_t     m_now;
 public:
 	OBSControlHeader();
 	virtual ~OBSControlHeader();
@@ -56,6 +58,10 @@ public:
 	uint32_t GetBurstSize(void);
 	void SetOffset(uint32_t offset);
 	uint32_t GetOffset(void);
+	void SetChannel(uint32_t channel);
+	uint32_t GetChannel(void);
+	void SetNow(uint32_t now);
+	uint32_t GetNow(void);
 
 	static TypeId GetTypeId (void);
 	virtual TypeId GetInstanceTypeId (void) const;
@@ -159,6 +165,11 @@ protected:
 	void FinishTransmitting();
 	void ControlPacketConverted(Ptr<Packet> pkt);
 	Ptr<OBSSwitch>     m_obs_switch;
+	void TransmitPacketControl(Ptr<Packet> pkt);
+	void TryToRetransmit(void);
+
+	Callback<void, Ptr<Packet> > m_callback_route_ctrl;
+	Callback<void, Ptr<Packet> > m_callback_process_ctrl;
 public:
 
 	static TypeId GetTypeId(void);
@@ -174,7 +185,7 @@ public:
 	uint32_t GetID();
 	void ReceiveControlPacket(Ptr<Packet> pkt);
 	bool SendControlPacket(const OBSControlHeader &header);
-	bool SendControlPacket(Mac48Address dst, uint32_t burst_id, uint32_t burst_size, uint32_t offset);
+	bool SendControlPacket(Mac48Address dst, uint32_t burst_id, uint32_t burst_size, uint32_t offset, uint32_t channel, uint32_t now);
 
 	bool ScheduleBurst(Ptr<PacketBurst> burst, double &time);
 
@@ -205,7 +216,24 @@ public:
 
 };
 
+struct CNDTuple {
+	Time            m_start;
+	Time            m_offset;
+	Ptr<CoreDevice> m_dev;
+
+	CNDTuple();
+	CNDTuple(const CNDTuple &t);
+	CNDTuple operator=(const CNDTuple &t);
+};
+
 class CoreNodeDevice : public CoreDevice {
+private:
+	void RouteControlPacket(Ptr<Packet> control_pkt);
+	std::map<uint32_t, std::list<CNDTuple> > m_map_schedule;
+
+	void FreeChannel(CNDTuple tuple);
+	void AllocChannel(CNDTuple tuple);
+	bool Schedule(Time start, Time offset, uint32_t channel, Ptr<CoreDevice> dev);
 public:
 	CoreNodeDevice();
 	virtual bool Send (Ptr< Packet > packet, const Address &dest, uint16_t protocolNumber);
@@ -236,6 +264,7 @@ private:
 	void FAPCheck(void);
 	void BurstScheduling(BNDScheduleEntity e, uint32_t channel);
 	void GenerateControlPacket(uint32_t channel, BNDScheduleEntity e);
+	void ProcessControlPacketReceived(Ptr<Packet> pkt);
 public:
 	BorderNodeDevice();
 	void AddPort(Ptr<NetDevice> nd);

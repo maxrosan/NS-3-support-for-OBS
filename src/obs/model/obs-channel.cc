@@ -74,6 +74,13 @@ OBSFiber::GetDevice(uint32_t i) const {
 bool
 OBSFiber::TransmitStartControlPacket(Ptr<Packet> packet, uint8_t sender) {
 	
+	if (m_channel_state[0] == OBS_IDLE)
+		NS_LOG_INFO("channel idle");
+	if (m_channel_state[0] == OBS_TRANSMITTING)
+		NS_LOG_INFO("channel transmitting");
+	if (m_channel_state[0] == OBS_PROPAGATING)
+		NS_LOG_INFO("channel propagating");
+
 	if (m_channel_state[0] != OBS_IDLE) {
 		return false;
 	}

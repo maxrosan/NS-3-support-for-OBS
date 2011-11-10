@@ -69,6 +69,26 @@ OBSControlHeader::GetOffset(void) {
 	return m_offset;
 }
 
+void
+OBSControlHeader::SetChannel(uint32_t channel) {
+	m_channel = channel;
+}
+
+uint32_t
+OBSControlHeader::GetChannel(void) {
+	return m_channel;
+}
+
+void
+OBSControlHeader::SetNow(uint32_t now) {
+	m_now = now;
+}
+
+uint32_t
+OBSControlHeader::GetNow(void) {
+	return m_now;
+}
+
 TypeId
 OBSControlHeader::GetTypeId(void) {
 	static TypeId tid = TypeId("ns3::OBSControlHeader")
@@ -97,6 +117,8 @@ OBSControlHeader::Serialize(Buffer::Iterator start) const {
 	start.WriteHtonU32(m_burst_id);
 	start.WriteHtonU32(m_burst_size);
 	start.WriteHtonU32(m_offset);
+	start.WriteHtonU32(m_channel);
+	start.WriteHtonU32(m_now);
 }
 
 uint32_t
@@ -107,6 +129,8 @@ OBSControlHeader::Deserialize(Buffer::Iterator start) {
 	m_burst_id = start.ReadNtohU32();
 	m_burst_size = start.ReadNtohU32();
 	m_offset = start.ReadNtohU32();
+	m_channel = start.ReadNtohU32();
+	m_now = start.ReadNtohU32();
 
 	return GetSerializedSize();
 }
@@ -119,7 +143,9 @@ OBSControlHeader::GetSerializedSize(void) const {
 		(sizeof m_dst) +
 		(sizeof m_burst_id) +
 		(sizeof m_burst_size) +
-		(sizeof m_offset)
+		(sizeof m_offset) +
+		(sizeof m_channel) +
+		(sizeof m_now)
 		
 	);
 }
@@ -236,6 +262,7 @@ OBSSwitch::AddRoute(Mac48Address addr, OBSRoutingTableTuple out) {
 void
 OBSSwitch::ReceiveControlPacket(Ptr<Packet> control_pkt) {
 	NS_LOG_INFO("Switch: control pkt received");
+
 }
 
 void
@@ -339,7 +366,6 @@ CoreDevice::GetTypeId() {
 }
 
 CoreDevice::CoreDevice() {
-	
 }
 
 void
@@ -485,6 +511,7 @@ CoreDevice::ControlPacketConverted(Ptr<Packet> pkt) {
 	NS_ASSERT(m_fiber != NULL);
 
 	OBSControlHeader obsch;
+	Time gap_value = Seconds(0.1);
 	NS_ASSERT(pkt->PeekHeader(obsch) > 0);
 
 	NS_LOG_INFO("Control packet:");
@@ -493,9 +520,23 @@ CoreDevice::ControlPacketConverted(Ptr<Packet> pkt) {
 	NS_LOG_INFO("ID  " << obsch.GetBurstID());
 	NS_LOG_INFO("Siz " << obsch.GetBurstSize());
 	NS_LOG_INFO("Tim " << obsch.GetOffset());
+	NS_LOG_INFO("Cnn " << obsch.GetChannel());
+	NS_LOG_INFO("Now " << obsch.GetNow());
 
 	if (m_obs_switch != NULL) {
-		m_obs_switch->ReceiveControlPacket(pkt);
+		if (obsch.GetDestination() == m_addr) {
+			NS_LOG_INFO(m_addr << ": This packet is to me");
+
+			if (!m_callback_process_ctrl.IsNull()) {
+				m_callback_process_ctrl(pkt);
+			}
+		} else {
+			NS_LOG_INFO(m_addr << ": This packet is not to me");
+			//m_obs_switch->ReceiveControlPacket(pkt);
+			if (!m_callback_route_ctrl.IsNull()) {
+				m_callback_route_ctrl(pkt);
+			}
+		}
 	} else {
 		NS_LOG_INFO("Switch not defined");
 	}
@@ -519,10 +560,21 @@ CoreDevice::FinishTransmitting() {
 	NS_ASSERT(m_fiber != NULL);
 
 	m_fiber->TransmitEndControlPacket();
+
+	if (!m_ctrlpkt_queue.empty()) {
+		Ptr<Packet> pkt_ptr = m_ctrlpkt_queue.front();
+		if (m_fiber->TransmitStartControlPacket(pkt_ptr, GetID())) {
+			NS_LOG_INFO("Packet in queue was sent");
+			m_ctrlpkt_queue.pop();
+			TransmitPacketControl(pkt_ptr);
+		} else {
+			NS_LOG_INFO("Packet in queue failed to be sent");
+		}
+	}
 }
 
 bool
-CoreDevice::SendControlPacket(Mac48Address dst, uint32_t burst_id, uint32_t burst_size, uint32_t offset) {
+CoreDevice::SendControlPacket(Mac48Address dst, uint32_t burst_id, uint32_t burst_size, uint32_t offset, uint32_t channel, uint32_t now) {
 
 	OBSControlHeader ch;
 
@@ -531,14 +583,58 @@ CoreDevice::SendControlPacket(Mac48Address dst, uint32_t burst_id, uint32_t burs
 	ch.SetBurstID(burst_id);
 	ch.SetBurstSize(burst_size);
 	ch.SetOffset(offset);
+	ch.SetChannel(channel);
+	ch.SetNow(now);
 
 	return SendControlPacket(ch);
+}
+
+void
+CoreDevice::TransmitPacketControl(Ptr<Packet> pkt) {
+	Time transmit_time;
+	DataRate data_rate;
+	Time time_for_converting;
+
+	NS_LOG_INFO(m_addr << ": Sending control packet");
+
+	time_for_converting = m_delay_to_conv_ele_opt;
+	data_rate = m_fiber->GetDataRate();
+	transmit_time = Seconds(data_rate.CalculateTxTime(pkt->GetSize())) + time_for_converting;
+
+	Simulator::Schedule(transmit_time,
+	 &CoreDevice::FinishTransmitting,
+	 this);	
+}
+
+void
+CoreDevice::TryToRetransmit(void) {
+	if (!m_ctrlpkt_queue.empty()) {
+		Ptr<Packet> pkt_ptr = m_ctrlpkt_queue.front();
+		if (m_fiber->TransmitStartControlPacket(pkt_ptr, GetID())) {
+			NS_LOG_INFO("Packet in queue was sent");
+			TransmitPacketControl(pkt_ptr);
+			m_ctrlpkt_queue.pop();
+		} else {
+			double v;
+			NS_LOG_INFO(Simulator::Now().GetSeconds() << "s#: Packet in queue failed to be sent");
+
+			v = 0.1 + ((double) (rand() % 100))/1000.;
+			Simulator::Schedule(Seconds(v), &CoreDevice::TryToRetransmit, this);
+		}
+	}
 }
 
 bool
 CoreDevice::SendControlPacket(const OBSControlHeader &header) {
 
+	static bool rand_gen = false;
+
 	NS_ASSERT(m_fiber != NULL);
+
+	if (!rand_gen) {
+		rand_gen = true;
+		srand(time(NULL));
+	}
 
 	Ptr<Packet> pkt_ptr;
 	Packet pkt = Packet((uint8_t*) "1", 1);
@@ -547,24 +643,16 @@ CoreDevice::SendControlPacket(const OBSControlHeader &header) {
 	pkt_ptr = pkt.Copy();
 
 	if (m_fiber->TransmitStartControlPacket(pkt_ptr, GetID())) {
-		Time transmit_time;
-		DataRate data_rate;
-		Time time_for_converting;
-
-		NS_LOG_INFO(m_addr << ": Sending control packet");
-
-		time_for_converting = m_delay_to_conv_ele_opt;
-		data_rate = m_fiber->GetDataRate();
-		transmit_time = Seconds(data_rate.CalculateTxTime(pkt_ptr->GetSize())) + time_for_converting;
-		
-		Simulator::Schedule(transmit_time,
-		 &CoreDevice::FinishTransmitting,
-		 this);	
-
+		TransmitPacketControl(pkt_ptr);
 		return true;
 	} else {
+		double v;
+
 		NS_LOG_INFO(m_addr << ": Failed to send control packet. Pkt in queue...");
 		m_ctrlpkt_queue.push(pkt_ptr);
+		
+		v = ((double) (rand() % 200))/1000.;
+		Simulator::Schedule(Seconds(v), &CoreDevice::TryToRetransmit, this);
 	}
 
 	return false;
@@ -700,9 +788,119 @@ CoreDevice::SendFrom (Ptr< Packet > packet, const Address &source, const Address
 
 }
 
+CNDTuple::CNDTuple() {
+}
+
+CNDTuple::CNDTuple(const CNDTuple &t) {
+	m_start = t.m_start;
+	m_offset = t.m_offset;
+	m_dev = t.m_dev;
+}
+
+CNDTuple
+CNDTuple::operator=(const CNDTuple &t) {
+	m_start = t.m_start;
+	m_offset = t.m_offset;
+	m_dev = t.m_dev;
+
+	return *this;
+}
+
 CoreNodeDevice::CoreNodeDevice():
 	CoreDevice()
 {
+	m_callback_route_ctrl = MakeCallback(&CoreNodeDevice::RouteControlPacket, this);
+}
+
+void
+CoreNodeDevice::FreeChannel(CNDTuple tuple) {
+
+}
+
+void
+CoreNodeDevice::AllocChannel(CNDTuple tuple) {
+	Simulator::Schedule(tuple.m_offset,
+	 &CoreNodeDevice::FreeChannel, this, tuple);
+}
+
+bool
+CoreNodeDevice::Schedule(Time start, Time offset, uint32_t channel, Ptr<CoreDevice> dev) {
+	NS_ASSERT(m_fiber != NULL);
+	NS_ASSERT(channel > 0 && channel <= m_fiber->GetNumChannels());
+	NS_ASSERT(m_map_schedule.find(channel) != m_map_schedule.end());
+
+	std::list<CNDTuple> &l = m_map_schedule[channel];
+	std::list<CNDTuple>::iterator it, curr;
+	CNDTuple tuple;
+	bool inserted = false, ok_to_insert = true;
+
+	if (Simulator::Now() > start)
+		return false;
+
+	tuple.m_start = start;
+	tuple.m_offset = offset;
+	tuple.m_dev = dev;
+
+	if (!l.empty()) {
+		for (it = l.begin(); it != l.end() && !inserted && ok_to_insert; it++) {
+			if ((start + offset) <=  it->m_start) {
+				l.insert(it, tuple);
+				inserted = true;
+			} else {
+				if (not (start >= (it->m_start + it->m_offset))) {
+					ok_to_insert = false;
+				}
+			}
+		}
+
+		if (!inserted && ok_to_insert) {
+			l.push_back(tuple);
+			inserted = true;
+		}
+	} else {
+		l.push_back(tuple);
+		inserted = true;
+	}
+
+	Simulator::Schedule(Seconds((start - Simulator::Now()).GetSeconds()),
+	 &CoreNodeDevice::AllocChannel, this, tuple);
+
+	return inserted;
+}
+
+void
+CoreNodeDevice::RouteControlPacket(Ptr<Packet> control_pkt) {
+	OBSControlHeader header;
+
+	NS_ASSERT(control_pkt != NULL);
+	NS_ASSERT(m_obs_switch != NULL);
+
+	if (control_pkt->PeekHeader(header) > 0) {
+		uint32_t now = Simulator::Now().GetSeconds() * 1000.,
+		         packet_start_time = header.GetNow();
+
+		NS_LOG_INFO("Control packet");
+		NS_LOG_INFO("Now " << now);
+		NS_LOG_INFO("PktNow " << packet_start_time);
+		NS_LOG_INFO("Offset " << header.GetOffset());
+
+		// it checks if it is possible to receive the packet
+		if ((packet_start_time + header.GetOffset()) > now) {
+			OBSRoutingTableTuple tuple;
+
+			if (m_obs_switch->GetTuple(header.GetDestination(), tuple)) {
+				NS_LOG_INFO("Out found");
+				//XXX: TENTAR ALOCAR INTERVALO DE TEMPO
+				//XXX: Se conseguiu alocar tempo, faça:
+				{
+					tuple.getDevice()->SendControlPacket(header);
+				}
+			} else
+				NS_LOG_INFO("It is not possible to reach destination");
+		} else {
+			NS_LOG_INFO("Time expired to receive the packet");
+		}
+	}
 }
 
 bool
@@ -756,6 +954,8 @@ BorderNodeDevice::BorderNodeDevice():
 {
 	m_time_to_stop = -1.;
 	m_fap_interval = 3.;
+
+	m_callback_process_ctrl = MakeCallback(&BorderNodeDevice::ProcessControlPacketReceived, this);
 
 	Simulator::Schedule(Seconds(m_fap_interval), &BorderNodeDevice::FAPCheck, this);
 }
@@ -818,6 +1018,11 @@ BorderNodeDevice::BurstScheduling(BNDScheduleEntity e, uint32_t channel) {
 			bursts.erase(it);
 		}
 	}
+}
+
+void
+BorderNodeDevice::ProcessControlPacketReceived(Ptr<Packet> pkt) {
+	NS_LOG_INFO("Processing packet");
 }
 
 void
@@ -965,14 +1170,15 @@ BorderNodeDevice::GenerateControlPacket(uint32_t channel, BNDScheduleEntity e) {
 	OBSRoutingTableTuple tuple;
 
 	if (m_obs_switch->GetTuple(e.m_dest, tuple)) {
-		uint32_t pkttime;
+		uint32_t pkttime, now;
 		NS_ASSERT(tuple.getDevice() != NULL);
 
 		pkttime = (uint32_t) (((e.m_start) - Simulator::Now()).GetSeconds() * 1000.);
+		now     = (uint32_t) (Simulator::Now().GetSeconds() * 1000.);
 
 		NS_LOG_INFO("Route found to " << e.m_dest);
 		
-		tuple.getDevice()->SendControlPacket(e.m_dest, e.m_id, e.m_packet->GetSize(), pkttime);
+		tuple.getDevice()->SendControlPacket(e.m_dest, e.m_id, e.m_packet->GetSize(), pkttime, channel, now);
 	} else {
 		NS_LOG_INFO("Route not found to " << e.m_dest);
 	}

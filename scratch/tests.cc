@@ -151,6 +151,7 @@ read_input() {
 		nc.Get(i)->AggregateObject(obs_switch);
 	}
 
+	LogComponentEnable("OBSFiber", LOG_LEVEL_INFO);
 	LogComponentEnable("OBSDevice", LOG_LEVEL_INFO);
 	LogComponentEnable("PointToPointDevice", LOG_LEVEL_LOGIC);
 
@@ -340,6 +341,7 @@ verify_obschannel() {
 	NS_ASSERT(obs_switch != NULL);
 
 	LogComponentEnable("OBSDevice", LOG_LEVEL_INFO);
+	LogComponentEnable("OBSFiber", LOG_LEVEL_INFO);
 
 	cd1->SetFiber(obschannel);
 	cd1->SetAddress(Mac48Address("11:22:33:44:55:66"));
@@ -360,7 +362,7 @@ verify_obschannel() {
 
 	cd1->SendBurst(1, pb.Copy());
 	//
-	cd1->SendControlPacket(Mac48Address::ConvertFrom(cd2->GetAddress()), 1, 10, 3);
+	//cd1->SendControlPacket(Mac48Address::ConvertFrom(cd2->GetAddress()), 1, 10, 3);
 	//
 	Simulator::Run ();
 	Simulator::Destroy ();
