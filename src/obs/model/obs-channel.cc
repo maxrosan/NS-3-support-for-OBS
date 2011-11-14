@@ -43,6 +43,11 @@ OBSFiber::GetTypeId(void) {
 OBSFiber::OBSFiber(): 
 	Channel() 
 {
+
+}
+
+void
+OBSFiber::InitChannels(void) {
 	uint8_t i;
 
 	NS_LOG_FUNCTION_NOARGS();
@@ -141,7 +146,7 @@ OBSFiber::TransmitStartBurstPacket(Ptr<PacketBurst> burst, uint8_t wavelength, u
 		wavelength_rcv = 0;
 
 	Simulator::Schedule(m_delay, &CoreDevice::ReceiveBurstStart,
-	  m_points[wavelength_rcv], wavelength);
+	  m_points[wavelength_rcv], wavelength, burst);
 
 	Simulator::Schedule(m_delay, &OBSFiber::PropagationCompleteBurstPacket,
 	  this, wavelength);

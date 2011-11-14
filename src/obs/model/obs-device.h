@@ -22,6 +22,8 @@
 #include <utility>
 #include <queue>
 
+//XXX: Tratar colisão entre os bursts. Verificar se pode haver colisão
+
 namespace ns3 {
 
 enum TxMachineState
@@ -155,7 +157,6 @@ protected:
 	ReceiveCallback   m_rcv_cb;
 	PromiscReceiveCallback m_pms_rcv_cb;
 	std::vector<WavelengthReceiver> m_wr_state;
-	void (*m_callback_burst) (Ptr<PacketBurst>);
 	std::queue<Ptr<Packet> > m_ctrlpkt_queue;
 
 	Time              m_delay_to_process;
@@ -173,6 +174,15 @@ protected:
 
 	Callback<void, Ptr<Packet> > m_callback_route_ctrl;
 	Callback<void, Ptr<Packet> > m_callback_process_ctrl;
+	Callback<void, uint32_t, Ptr<PacketBurst> > m_callback_burst_start;
+	Callback<void, uint32_t, Ptr<PacketBurst> > m_callback_burst_end;
+	Callback<void, uint32_t, Ptr<PacketBurst> > m_callback_burst_process;
+
+	void ConvertBurst(uint32_t wavelength, Ptr<PacketBurst> pkt);
+
+	// channel -> (device, channel)
+	std::map<uint32_t, std::pair<Ptr<CoreDevice>, uint32_t> > m_map_switch;
+
 public:
 
 	static TypeId GetTypeId(void);
@@ -181,7 +191,7 @@ public:
 
 	void SetSwitch(Ptr<OBSSwitch> sw);
 	void ChangeRoute(uint32_t wavelength, Ptr<CoreDevice> cd, uint32_t wavelength_dst);
-	void ReceiveBurstStart(uint32_t wavelength);
+	void ReceiveBurstStart(uint32_t wavelength, Ptr<PacketBurst> pb);
 	void ReceiveBurstEnd(uint32_t wavelength, Ptr<PacketBurst> pb);
 	void SetFiber(Ptr<OBSFiber> fiber);
 	bool SendBurst(uint32_t wavelength, Ptr<PacketBurst> pkt);
@@ -191,6 +201,7 @@ public:
 	bool SendControlPacket(Mac48Address dst, uint32_t burst_id, uint32_t burst_size, uint32_t offset, uint32_t channel, uint32_t now, uint32_t duration);
 
 	bool ScheduleBurst(Ptr<PacketBurst> burst, double &time);
+	Ptr<OBSFiber> GetFiber();
 
 	virtual void SetIfIndex (const uint32_t index);
 	virtual uint32_t GetIfIndex (void) const;
@@ -234,6 +245,10 @@ struct CNDTuple {
 
 class CoreNodeDevice : public CoreDevice {
 private:
+
+
+	void BurstStart(uint32_t channel, Ptr<PacketBurst> burst);
+	void BurstEnd(uint32_t channel, Ptr<PacketBurst> burst);
 	void RouteControlPacket(Ptr<Packet> control_pkt);
 	std::map<uint32_t, std::list<CNDTuple> > m_map_schedule;
 	// id of tuple -> (device, channel)
@@ -243,6 +258,7 @@ private:
 	void AllocChannel(CNDTuple tuple);
 	virtual void RemoveSchedule(uint32_t channel, uint32_t id);
 	virtual bool Schedule(Time start, Time offset, uint32_t channel, Ptr<CoreDevice> dev, uint32_t &id);
+	void DelayFiber(uint32_t channel, Ptr<PacketBurst> burst);
 public:
 	CoreNodeDevice();
 	virtual bool Send (Ptr< Packet > packet, const Address &dest, uint16_t protocolNumber);
@@ -274,6 +290,7 @@ private:
 	void BurstScheduling(BNDScheduleEntity e, uint32_t channel);
 	void GenerateControlPacket(uint32_t channel, BNDScheduleEntity e);
 	void ProcessControlPacketReceived(Ptr<Packet> pkt);
+	void ProcessBurst(uint32_t channel, Ptr<PacketBurst> pb);
 public:
 	BorderNodeDevice();
 	void AddPort(Ptr<NetDevice> nd);

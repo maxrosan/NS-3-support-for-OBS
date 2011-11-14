@@ -399,12 +399,22 @@ CoreDevice::ChangeRoute(uint32_t wavelength, Ptr<CoreDevice> cd, uint32_t wavele
 
 //It is called by the channel as soon as the transmission is started
 void
-CoreDevice::ReceiveBurstStart(uint32_t wavelength) {
+CoreDevice::ReceiveBurstStart(uint32_t wavelength, Ptr<PacketBurst> pb) {
 	NS_ASSERT(m_fiber != NULL);
 	
 	m_wr_state[wavelength].state = OBS_BUSY;
 
 	NS_LOG_INFO(m_addr << ": Receiving burst...");
+
+	if (!m_callback_burst_start.IsNull()) {
+		m_callback_burst_start(wavelength, pb);
+	}
+}
+
+void
+CoreDevice::ConvertBurst(uint32_t wavelength, Ptr<PacketBurst> pkt) {
+	if (!m_callback_burst_process.IsNull())
+		m_callback_burst_process(wavelength, pkt);
 }
 
 //It is called by the channel as soon as the transmission is finished
@@ -414,13 +424,20 @@ CoreDevice::ReceiveBurstEnd(uint32_t wavelength, Ptr<PacketBurst> pkt) {
 
 	m_wr_state[wavelength].state = OBS_READY;
 
-	if (m_callback_burst != NULL) {
-		Simulator::Schedule(m_delay_to_process, m_callback_burst,
-		 pkt->Copy());
+	if (!m_callback_burst_process.IsNull()) {
+
+		NS_LOG_INFO("Delay " << m_delay_to_process.GetSeconds());
+		NS_LOG_INFO(" # = " << m_callback_burst_process.IsNull());
+
+		Simulator::Schedule(m_delay_to_process, &CoreDevice::ConvertBurst, 
+		 this, wavelength, pkt->Copy());
 
 		NS_LOG_INFO(m_addr << ": Burst transmission finished...");
-	} else {
-		NS_LOG_INFO(m_addr << ": Burst lost, no callback defined");
+	} 
+
+	if (!m_callback_burst_end.IsNull()) {
+		m_callback_burst_end(wavelength, pkt->Copy());
+		NS_LOG_INFO(m_addr << ": Burst routed");
 	}
 }
 
@@ -474,10 +491,10 @@ CoreDevice::SendBurstAfterConverting(uint32_t wavelength, Ptr<PacketBurst> pkt) 
 
 		m_fiber->TransmitStartBurstPacket(pkt, wavelength, m_id);
 		data_rate = m_fiber->GetDataRate();
-		transmit_time = Seconds(data_rate.CalculateTxTime(pkt->GetSize())) + Seconds(time_for_propagation);
+		transmit_time = Seconds(data_rate.CalculateTxTime(pkt->GetSize())) + time_for_propagation;
 
 		NS_LOG_INFO(m_addr << ": Time to transmit : " << transmit_time.GetSeconds() << "s");
-
+	
 		Simulator::Schedule(transmit_time, &CoreDevice::TransmitComplete, this, wavelength);
 	} else {
 		NS_LOG_INFO(m_addr << ": Fiber is not idle");
@@ -493,7 +510,7 @@ CoreDevice::SendBurst(uint32_t wavelength, Ptr<PacketBurst> packet) {
 
 	Ptr<PacketBurst> copy_pkt = packet->Copy();
 
-	NS_LOG_INFO(m_addr << ": Sending burst");
+	NS_LOG_INFO(m_addr << ": Sending burst [" << wavelength << "]");
 
 	if (m_wr_state[wavelength].state == OBS_READY && m_fiber->GetState(wavelength) == OBS_IDLE) {
 		// Delay to convert eletric information into optical one
@@ -507,6 +524,18 @@ CoreDevice::SendBurst(uint32_t wavelength, Ptr<PacketBurst> packet) {
 	
 	} else {
 		NS_LOG_INFO(m_addr << ": Wavelength channel was not ready to go");
+		if (m_fiber->GetState(wavelength) != OBS_IDLE)
+			NS_LOG_INFO("The channel is not idle");
+		if (m_wr_state[wavelength].state != OBS_READY)
+			NS_LOG_INFO("The channe is not ready");
+
+		if (m_fiber->GetState(wavelength) == OBS_TRANSMITTING)
+			NS_LOG_INFO("Transmitting");
+		if (m_fiber->GetState(wavelength) == OBS_PROPAGATING)
+			NS_LOG_INFO("Propagating");
+
+		NS_LOG_INFO("value = " << m_fiber->GetState(wavelength));
+
 		return false;
 	}
 
@@ -813,6 +842,11 @@ CoreDevice::Schedule(Time start, Time offset, uint32_t channel, Ptr<CoreDevice> 
 	return false;
 }
 
+Ptr<OBSFiber>
+CoreDevice::GetFiber() {
+	return m_fiber;
+}
+
 CNDTuple::CNDTuple() {
 }
 
@@ -835,10 +869,49 @@ CNDTuple::operator=(const CNDTuple &t) {
 	return *this;
 }
 
+void
+CoreNodeDevice::BurstStart(uint32_t channel, Ptr<PacketBurst> pb) {
+	NS_LOG_INFO(Simulator::Now().GetSeconds() << "s " << Mac48Address::ConvertFrom(GetAddress())
+	 << "Routing burst start : " << channel);
+	if (m_map_switch.find(channel) != m_map_switch.end()) {
+		NS_LOG_INFO("Route found for burst");
+		NS_LOG_INFO("=> " <<
+		 Mac48Address::ConvertFrom(m_map_switch[channel].first->GetAddress()) <<
+		 "[ " << m_map_switch[channel].second << "]");
+
+		m_map_switch[channel].first->GetFiber()->TransmitStartBurstPacket(pb,
+		 m_map_switch[channel].second, m_map_switch[channel].first->GetID());
+	} else {
+		NS_LOG_INFO("No route for the burst arrived");
+	}
+}
+
+void
+CoreNodeDevice::DelayFiber(uint32_t channel, Ptr<PacketBurst> burst) {
+
+	if (m_map_switch.find(channel) != m_map_switch.end()) {
+		m_map_switch[channel].first->GetFiber()->TransmitEndBurstPacket(m_map_switch[channel].second);
+	}
+}
+
+void
+CoreNodeDevice::BurstEnd(uint32_t channel, Ptr<PacketBurst> burst) {
+	NS_LOG_INFO("Routing burst end : " << channel);
+	
+	if (m_map_switch.find(channel) != m_map_switch.end()) {
+		Simulator::Schedule(m_fiber->GetDelay(), &CoreNodeDevice::DelayFiber, this, channel,
+		 burst);
+	} else {
+		NS_LOG_INFO("Burst not found");
+	}
+}
+
 CoreNodeDevice::CoreNodeDevice():
 	CoreDevice()
 {
 	m_callback_route_ctrl = MakeCallback(&CoreNodeDevice::RouteControlPacket, this);
+	m_callback_burst_start = MakeCallback(&CoreNodeDevice::BurstStart, this);
+	m_callback_burst_end = MakeCallback(&CoreNodeDevice::BurstEnd, this);
 }
 
 void
@@ -847,6 +920,7 @@ CoreNodeDevice::FreeChannel(CNDTuple tuple) {
 	if (tuple.m_dev != NULL) {
 		NS_LOG_INFO(Simulator::Now().GetSeconds() << "s " << Mac48Address::ConvertFrom(GetAddress()) << ": " <<
 		 "Liberando " << Mac48Address::ConvertFrom(tuple.m_dev->GetAddress()) << ", " << m_map_channel[tuple.m_id].second);
+
 	}
 
 	RemoveSchedule(tuple.m_channel, tuple.m_id);
@@ -865,6 +939,10 @@ CoreNodeDevice::AllocChannel(CNDTuple tuple) {
 		NS_LOG_INFO(Simulator::Now().GetSeconds() << "s : " << Mac48Address::ConvertFrom(GetAddress()) << " "
 		":  Repassar pacotes de [" << tuple.m_channel << "] para " << Mac48Address::ConvertFrom(tuple.m_dev->GetAddress()) <<
 		"[" << m_map_channel[tuple.m_id].second << "]");
+
+		m_map_switch[tuple.m_channel] =
+		 std::make_pair(tuple.m_dev, m_map_channel[tuple.m_id].second);
+
 	}
 }
 
@@ -975,6 +1053,7 @@ CoreNodeDevice::RouteControlPacket(Ptr<Packet> control_pkt) {
 							header.SetChannel(channel);
 							tuple.getDevice()->SendControlPacket(header);
 							channel_found = true;
+							break;
 						} else {
 							tuple.getDevice()->RemoveSchedule(channel, id2);
 						}
@@ -1045,6 +1124,11 @@ BNDScheduleEntity BNDScheduleEntity::operator=(const BNDScheduleEntity &c) {
 	return *this;
 }
 
+void
+BorderNodeDevice::ProcessBurst(uint32_t channel, Ptr<PacketBurst> burst) {
+	NS_LOG_INFO("Burst to process at channel");
+}
+
 BorderNodeDevice::BorderNodeDevice():
 	CoreDevice()
 {
@@ -1052,6 +1136,7 @@ BorderNodeDevice::BorderNodeDevice():
 	m_fap_interval = 3.;
 
 	m_callback_process_ctrl = MakeCallback(&BorderNodeDevice::ProcessControlPacketReceived, this);
+	m_callback_burst_process = MakeCallback(&BorderNodeDevice::ProcessBurst, this);
 
 	Simulator::Schedule(Seconds(m_fap_interval), &BorderNodeDevice::FAPCheck, this);
 }
@@ -1106,7 +1191,9 @@ BorderNodeDevice::BurstScheduling(BNDScheduleEntity e, uint32_t channel) {
 	std::list<BNDScheduleEntity>::iterator it;
 	bool found = false;
 
-	NS_LOG_INFO("Sending packet at " << e.m_start << " ; id = " << e.m_id);
+	NS_LOG_INFO("Sending burst at " << e.m_start << " ; id = " << e.m_id);
+
+	SendBurst(channel, e.m_packet);
 
 	for (it = bursts.begin(); (it != bursts.end()) && !found; it++) {
 		if (it->m_id == e.m_id) {

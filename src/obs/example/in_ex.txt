@@ -27,7 +27,6 @@ path c4 c0 c3 c7 ;
 #
 gen c4 c6 1. 1. 10.
 gen c4 c5 1. 1. 10.
-gen c4 c7 1. 1. 10.
 #
 Sintaxe:
 # bloco

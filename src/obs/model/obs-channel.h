@@ -45,6 +45,7 @@ public:
 	static TypeId GetTypeId(void);
 
 	OBSFiber();
+	void InitChannels(void);
 	virtual uint32_t GetNDevices(void) const;
 	virtual Ptr<NetDevice> GetDevice(uint32_t i) const;
 

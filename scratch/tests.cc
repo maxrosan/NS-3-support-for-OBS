@@ -188,7 +188,9 @@ read_input() {
 			NS_ASSERT(obschannel != NULL);
 			obschannel->SetAttribute("NumOfWL", UintegerValue(5));
 			obschannel->SetAttribute("Delay", TimeValue(Time("5ms")));
-			obschannel->SetAttribute("DataRate", DataRateValue(DataRate("10Gbps")));		
+			obschannel->SetAttribute("DataRate", DataRateValue(DataRate("10Gbps")));
+
+			obschannel->InitChannels();
 
 			if (map_type[nA] == CORE)
 				dev1 = CreateObject<CoreNodeDevice>();
