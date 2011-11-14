@@ -427,7 +427,6 @@ CoreDevice::ReceiveBurstEnd(uint32_t wavelength, Ptr<PacketBurst> pkt) {
 	if (!m_callback_burst_process.IsNull()) {
 
 		NS_LOG_INFO("Delay " << m_delay_to_process.GetSeconds());
-		NS_LOG_INFO(" # = " << m_callback_burst_process.IsNull());
 
 		Simulator::Schedule(m_delay_to_process, &CoreDevice::ConvertBurst, 
 		 this, wavelength, pkt->Copy());
@@ -1126,7 +1125,19 @@ BNDScheduleEntity BNDScheduleEntity::operator=(const BNDScheduleEntity &c) {
 
 void
 BorderNodeDevice::ProcessBurst(uint32_t channel, Ptr<PacketBurst> burst) {
-	NS_LOG_INFO("Burst to process at channel");
+
+	std::list<Ptr<Packet> >::const_iterator it;
+
+	NS_LOG_INFO("Burst to process at channel. Nº packets = " << burst->GetNPackets());
+
+	for (it = burst->Begin(); it != burst->End(); it++) {
+		Ptr<Packet> pkt = *it;
+		OBSPacketHeader pkt_header;
+
+		if (pkt->RemoveHeader(pkt_header) > 0) {
+			NS_LOG_INFO("protocol = " << pkt_header.GetProtocolNumber());
+		}
+	}
 }
 
 BorderNodeDevice::BorderNodeDevice():
